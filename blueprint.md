@@ -39,7 +39,9 @@ aml-triaging-engine/
 │       ├── __init__.py
 │       ├── gemini_client.py       # Custom Gemini API wrapper with backoff
 │       └── websocket_manager.py   # Live compliance updates broadcaster
-
+│
+│── scripts/
+│   ├── generate_transactions.py   # Custom script to generate random transaction using Faker library
 
 Step-by-Step Build Pipeline
 
@@ -63,8 +65,7 @@ Step 4: Strict JSON Schema Evaluation with Gemini
 
 Step 5: Live Updates (WebSockets) and Outbound Webhooks
     -The Goal: Replicate real-time operations in a banking terminal.
-    -Action:Maintain a persistent WebSocket pool. When an agent finishes evaluating a transaction, broadcast the update to active UI clients.
-    If the transaction risk returns HIGH, fire a mock outbound Webhook POST request to a third-party core banking microservice to freeze the target account.
+    -Action:Maintain a persistent WebSocket pool. When an agent finishes evaluating a transaction, broadcast the update to active UI clients. If the transaction risk returns HIGH, fire a mock outbound Webhook POST request to a third-party core banking microservice to freeze the target account.
 
 
 UK FCA Regulatory Frameworks:

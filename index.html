@@ -248,7 +248,7 @@
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.ping) return; // heartbeat
-                if (data.tx_id && data.tx_id !== currentTxId) return; // ignore other clients
+                if (currentTxId && data.tx_id && data.tx_id !== currentTxId) return; // ignore other clients when tracking a specific tx
                 handleServerEvent(data);
             };
 
