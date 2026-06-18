@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AML Sentinel: Live Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b1329; }
+        ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-emerald-500 selection:text-slate-950">
+
+    <!-- TOP NAVBAR -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-xl text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.35)]">
+                <i class="fa-solid fa-shield-halved text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                    AML SENTINEL <span class="text-[10px] bg-emerald-500/10 text-emerald-400 font-mono px-2.5 py-0.5 rounded-full border border-emerald-500/20 uppercase">Live Backend</span>
+                </h1>
+                <p class="text-xs text-slate-400">Asynchronous Transaction Risk & AML Triaging Engine • UK FCA Compliance Standard</p>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-4 items-center">
+            <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2 px-3.5 text-center min-w-[95px]">
+                <p class="text-[10px] text-slate-400 uppercase font-semibold">Processed</p>
+                <p id="stat-total" class="text-base font-bold text-white font-mono mt-0.5">0</p>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2 px-3.5 text-center min-w-[95px]">
+                <p class="text-[10px] text-rose-400 uppercase font-semibold">High Risk</p>
+                <p id="stat-high" class="text-base font-bold text-rose-500 font-mono mt-0.5">0</p>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2 px-3.5 text-center min-w-[95px]">
+                <p class="text-[10px] text-amber-400 uppercase font-semibold">Suspicious</p>
+                <p id="stat-medium" class="text-base font-bold text-amber-500 font-mono mt-0.5">0</p>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2 px-3.5 text-center min-w-[95px]">
+                <p class="text-[10px] text-emerald-400 uppercase font-semibold">Clear</p>
+                <p id="stat-low" class="text-base font-bold text-emerald-400 font-mono mt-0.5">0</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- NAVIGATION TABS -->
+    <div class="bg-slate-900 border-b border-slate-800 flex justify-between items-center px-6 py-2 overflow-x-auto">
+        <div class="flex gap-2">
+            <button onclick="switchTab('dashboard')" id="btn-dashboard" class="tab-btn flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <i class="fa-solid fa-chart-line"></i> Dashboard
+            </button>
+            <button onclick="switchTab('ledger')" id="btn-ledger" class="tab-btn flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-receipt"></i> Full Ledger
+            </button>
+        </div>
+        <div class="hidden lg:flex items-center gap-1.5 text-xs font-mono">
+            <span id="ws-indicator" class="w-2 h-2 rounded-full bg-slate-600"></span>
+            <span id="ws-label" class="text-slate-400">Connecting to WebSocket...</span>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 p-6 overflow-y-auto">
+
+        <!-- TAB: DASHBOARD -->
+        <div id="tab-dashboard" class="tab-content grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- LEFT: INGESTION GATEWAY -->
+            <div class="lg:col-span-4 flex flex-col gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-gears text-emerald-400"></i> Ingestion Gateway
+                    </h2>
+                    <p class="text-xs text-slate-400 mb-4 leading-relaxed">
+                        Select a transaction typology to POST a real ISO 20022 payload to the backend and observe live agent output.
+                    </p>
+                    <div class="flex flex-col gap-3">
+                        <button onclick="triggerSimulation('structuring')" class="text-left p-3.5 bg-slate-950 border border-slate-800 hover:border-emerald-500/40 rounded-lg group transition flex flex-col gap-1.5">
+                            <div class="flex items-center justify-between w-full">
+                                <span class="text-xs font-bold font-mono text-emerald-400 uppercase tracking-wide">Smurfing & Structuring Pattern</span>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-emerald-400 transition"></i>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">£9,850 — designed to bypass the £10,000 reporting threshold.</p>
+                        </button>
+                        <button onclick="triggerSimulation('shell')" class="text-left p-3.5 bg-slate-950 border border-slate-800 hover:border-emerald-500/40 rounded-lg group transition flex flex-col gap-1.5">
+                            <div class="flex items-center justify-between w-full">
+                                <span class="text-xs font-bold font-mono text-emerald-400 uppercase tracking-wide">Dormant Shell Transfer</span>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-emerald-400 transition"></i>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">£145,000 to a dormant company with offshore UBO.</p>
+                        </button>
+                        <button onclick="triggerSimulation('clean')" class="text-left p-3.5 bg-slate-950 border border-slate-800 hover:border-emerald-500/40 rounded-lg group transition flex flex-col gap-1.5">
+                            <div class="flex items-center justify-between w-full">
+                                <span class="text-xs font-bold font-mono text-emerald-400 uppercase tracking-wide">High-Street Payroll (Clear)</span>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-emerald-400 transition"></i>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">£3,250 standard payroll from an active UK business.</p>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Raw ISO Payload -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex-1 flex flex-col">
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-file-invoice text-emerald-400"></i> ISO 20022 Payload Sent
+                    </h2>
+                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex-1 overflow-auto code-font text-[10px] text-slate-300">
+                        <pre id="raw-iso-payload">// Awaiting payload submission...</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE: AGENT PIPELINE -->
+            <div class="lg:col-span-5 flex flex-col gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-network-wired text-emerald-400"></i> Async Agentic Processing Flow
+                    </h2>
+                    <div class="relative space-y-6 pl-6 border-l-2 border-slate-800">
+                        <div class="relative">
+                            <span id="circle-step1" class="absolute -left-[31px] top-0 w-4 h-4 rounded-full border-2 bg-slate-950 border-slate-700 transition-all duration-300"></span>
+                            <div id="text-step1" class="text-slate-500 transition-colors">
+                                <h3 class="text-xs font-bold uppercase tracking-wider font-mono">Agent 1: Sifter Engine</h3>
+                                <p class="text-[11px] leading-normal mt-0.5">Parses ISO payload, inspects amount against structuring thresholds.</p>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <span id="circle-step2" class="absolute -left-[31px] top-0 w-4 h-4 rounded-full border-2 bg-slate-950 border-slate-700 transition-all duration-300"></span>
+                            <div id="text-step2" class="text-slate-500 transition-colors">
+                                <h3 class="text-xs font-bold uppercase tracking-wider font-mono">Agent 2: OSINT Investigator</h3>
+                                <p class="text-[11px] leading-normal mt-0.5">Crawls UK Companies House to trace Ultimate Beneficial Owners.</p>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <span id="circle-step3" class="absolute -left-[31px] top-0 w-4 h-4 rounded-full border-2 bg-slate-950 border-slate-700 transition-all duration-300"></span>
+                            <div id="text-step3" class="text-slate-500 transition-colors">
+                                <h3 class="text-xs font-bold uppercase tracking-wider font-mono">Agent 3: AI Risk Scorer</h3>
+                                <p class="text-[11px] leading-normal mt-0.5">Applies FCA MLR-2017 rules and Claude AI to produce a risk verdict.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Terminal -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex-1 flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-emerald-400"></i> Live Event Stream
+                        </h2>
+                        <span id="console-ping" class="w-2.5 h-2.5 rounded-full bg-slate-800"></span>
+                    </div>
+                    <div id="live-terminal" class="bg-slate-950 border border-slate-800 rounded-lg p-3.5 flex-1 overflow-y-auto code-font text-[10px] text-slate-400 space-y-2 min-h-[220px]">
+                        <div class="text-slate-600 italic">// Waiting for transaction submission...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: DECISION CARD + LEDGER -->
+            <div class="lg:col-span-3 flex flex-col gap-6">
+                <div id="decision-card" class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg transition-all duration-300">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i id="decision-icon" class="fa-solid fa-triangle-exclamation text-slate-600 text-lg"></i>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-white">Analysis Result</h3>
+                    </div>
+                    <div class="mb-4">
+                        <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Risk Determination</span>
+                        <p id="decision-badge" class="text-xl font-black font-mono mt-0.5 text-slate-500">IDLE</p>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">AI Reasoning</span>
+                            <p id="decision-rationale" class="text-xs text-slate-300 leading-relaxed bg-slate-950 border border-slate-800 rounded-lg p-2.5 mt-1 min-h-[110px]">
+                                Submit a transaction to see the AI compliance evaluation.
+                            </p>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Recommended Action</span>
+                            <p id="decision-action" class="text-xs font-mono font-bold mt-1 text-slate-400">NONE</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex-1 flex flex-col">
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-receipt text-slate-400"></i> Audit Ledger
+                    </h2>
+                    <div id="ledger-list" class="space-y-2 overflow-y-auto flex-1 max-h-[300px]"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: FULL LEDGER -->
+        <div id="tab-ledger" class="tab-content hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-database text-emerald-400"></i> Full Transaction Ledger
+                    </h2>
+                    <button onclick="refreshLedger()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 rounded-lg transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                    </button>
+                </div>
+                <div id="full-ledger-table" class="overflow-x-auto code-font text-[11px]">
+                    <div class="text-slate-500 italic">// No transactions yet.</div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="border-t border-slate-800 bg-slate-900/40 px-6 py-3 flex flex-col sm:flex-row justify-between text-[11px] text-slate-500 gap-2">
+        <div>
+            <span>Target Market: <strong>UK FinTech / RegTech Hub</strong></span>
+            <span class="mx-2">|</span>
+            <span>Stack: <strong>FastAPI · Claude AI · WebSocket · ISO 20022</strong></span>
+        </div>
+        <div>
+            <span>Backend: <strong id="backend-status" class="text-slate-400">Connecting...</strong></span>
+        </div>
+    </footer>
+
+    <script>
+        // ---------------------------------------------------------------
+        // WebSocket — connects to backend and receives live agent events
+        // ---------------------------------------------------------------
+        let socket = null;
+        let currentTxId = null;
+        let activeProcess = false;
+        const LEDGER_CACHE = [];
+
+        function connectWebSocket() {
+            socket = new WebSocket('ws://localhost:8000/ws/compliance');
+
+            socket.onopen = () => {
+                document.getElementById('ws-indicator').className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                document.getElementById('ws-label').innerText = "WebSocket Connected";
+                document.getElementById('backend-status').innerText = "OPERATIONAL";
+                document.getElementById('backend-status').className = "text-emerald-400";
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.ping) return; // heartbeat
+                if (data.tx_id && data.tx_id !== currentTxId) return; // ignore other clients
+                handleServerEvent(data);
+            };
+
+            socket.onclose = () => {
+                document.getElementById('ws-indicator').className = "w-2 h-2 rounded-full bg-rose-500";
+                document.getElementById('ws-label').innerText = "WebSocket Disconnected — retrying...";
+                document.getElementById('backend-status').innerText = "OFFLINE";
+                document.getElementById('backend-status').className = "text-rose-400";
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            socket.onerror = () => {
+                document.getElementById('ws-label').innerText = "WebSocket Error";
+            };
+        }
+
+        connectWebSocket();
+
+        // ---------------------------------------------------------------
+        // Handle live events pushed from the backend
+        // ---------------------------------------------------------------
+        const AGENT_STEP_MAP = {
+            'Sifting Agent': 'step1',
+            'OSINT Investigator': 'step2',
+            'Risk Scorer': 'step3'
+        };
+
+        function handleServerEvent(data) {
+            const term = document.getElementById('live-terminal');
+
+            if (data.event === 'AGENT_STEP') {
+                const step = AGENT_STEP_MAP[data.agent];
+                if (step) {
+                    document.getElementById(`circle-${step}`).className =
+                        "absolute -left-[31px] top-0 w-4 h-4 rounded-full border-2 bg-emerald-500 border-emerald-500 scale-110 shadow-[0_0_10px_rgba(16,185,129,0.5)] transition-all duration-300";
+                    document.getElementById(`text-${step}`).className = "text-emerald-400 font-bold transition-colors";
+                }
+                term.innerHTML += `<div class="text-slate-300">[${data.agent}] ${data.log}</div>`;
+                term.scrollTop = term.scrollHeight;
+            }
+
+            if (data.event === 'TRIAGE_COMPLETE') {
+                const p = data.payload;
+                applyDecisionCard(p.risk_score, p.status, p.reasoning, p.recommended_action);
+                term.innerHTML += `<div class="text-emerald-400 font-bold">[Triage Complete] ${p.risk_score} RISK → ${p.recommended_action}</div>`;
+                if (p.risk_score === 'HIGH') {
+                    term.innerHTML += `<div class="text-rose-400 font-bold">🚨 [FREEZE PROTOCOL] Account freeze dispatched to core-banking ledger.</div>`;
+                }
+                term.scrollTop = term.scrollHeight;
+
+                LEDGER_CACHE.unshift(p);
+                renderLedgers();
+                updateStats();
+
+                document.getElementById('console-ping').className = "w-2.5 h-2.5 rounded-full bg-slate-800";
+                activeProcess = false;
+            }
+        }
+
+        function applyDecisionCard(risk, status, reasoning, action) {
+            const card = document.getElementById('decision-card');
+            const icon = document.getElementById('decision-icon');
+            const badge = document.getElementById('decision-badge');
+            const rat = document.getElementById('decision-rationale');
+            const act = document.getElementById('decision-action');
+
+            const styles = {
+                HIGH:   { card: "bg-rose-950/20 border border-rose-500/40",   icon: "fa-solid fa-skull-crossbones text-rose-500 text-lg animate-bounce", text: "text-rose-500" },
+                MEDIUM: { card: "bg-amber-950/20 border border-amber-500/40", icon: "fa-solid fa-triangle-exclamation text-amber-400 text-lg animate-pulse", text: "text-amber-400" },
+                LOW:    { card: "bg-emerald-950/20 border border-emerald-500/40", icon: "fa-solid fa-circle-check text-emerald-400 text-lg", text: "text-emerald-400" }
+            };
+            const s = styles[risk] || styles.LOW;
+
+            card.className = `${s.card} rounded-xl p-5 shadow-lg transition-all duration-300`;
+            icon.className = s.icon;
+            badge.className = `text-xl font-black font-mono mt-0.5 ${s.text}`;
+            act.className = `text-xs font-mono font-bold mt-1 ${s.text}`;
+
+            badge.innerText = `${risk} RISK (${status})`;
+            rat.innerText = reasoning || 'No reasoning provided.';
+            act.innerText = action;
+        }
+
+        // ---------------------------------------------------------------
+        // Submit transaction to real backend
+        // ---------------------------------------------------------------
+        const SCENARIOS = {
+            structuring: {
+                debtor:      { name: "Alex Mercer",          sort_code: "20-45-12", account_number: "44891023" },
+                creditor:    { name: "Apex Holdings Ltd",    sort_code: "60-83-01", account_number: "99201145", companies_house_number: "UK12984401" },
+                transaction: { amount: 9850,   currency: "GBP", reference: "Project Deposit Phase 1" }
+            },
+            shell: {
+                debtor:      { name: "Stellar Logistics Co", sort_code: "30-12-56", account_number: "73625841" },
+                creditor:    { name: "Vanguard Holdings Ltd",sort_code: "60-83-01", account_number: "99201145", companies_house_number: "UK99882211" },
+                transaction: { amount: 145000, currency: "GBP", reference: "Management Consulting Retainer" }
+            },
+            clean: {
+                debtor:      { name: "Octane Software Corp", sort_code: "20-45-12", account_number: "44891023" },
+                creditor:    { name: "Jonathan Doe",         sort_code: "40-47-51", account_number: "12345678" },
+                transaction: { amount: 3250,   currency: "GBP", reference: "Payroll Engineering Compensation" }
+            }
+        };
+
+        async function triggerSimulation(scenId) {
+            if (activeProcess) return;
+            activeProcess = true;
+
+            // Reset step indicators
+            ['step1', 'step2', 'step3'].forEach(step => {
+                document.getElementById(`circle-${step}`).className =
+                    "absolute -left-[31px] top-0 w-4 h-4 rounded-full border-2 bg-slate-950 border-slate-700 transition-all duration-300";
+                document.getElementById(`text-${step}`).className = "text-slate-500 transition-colors";
+            });
+
+            const term = document.getElementById('live-terminal');
+            term.innerHTML = `<div class="text-emerald-400 font-bold">// POSTING ISO 20022 PAYLOAD TO BACKEND...</div>`;
+            document.getElementById('console-ping').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping";
+
+            const scenario = SCENARIOS[scenId];
+            const payload = {
+                message_identifier: `pacs.008.${scenId}.${Math.floor(Math.random() * 999999)}`,
+                ...scenario
+            };
+
+            document.getElementById('raw-iso-payload').innerText = JSON.stringify(payload, null, 2);
+
+            try {
+                const response = await fetch('/api/v1/transaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(JSON.stringify(err.detail));
+                }
+
+                const result = await response.json();
+                currentTxId = result.transaction_id;
+                term.innerHTML += `<div class="text-slate-300">Transaction accepted: <span class="text-emerald-400 font-mono">${currentTxId}</span>. Waiting for agent pipeline...</div>`;
+            } catch (err) {
+                term.innerHTML += `<div class="text-rose-400 font-bold">Error: ${err.message}</div>`;
+                document.getElementById('console-ping').className = "w-2.5 h-2.5 rounded-full bg-slate-800";
+                activeProcess = false;
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Ledger rendering
+        // ---------------------------------------------------------------
+        function renderLedgers() {
+            const listEl = document.getElementById('ledger-list');
+            listEl.innerHTML = '';
+            LEDGER_CACHE.slice(0, 10).forEach(item => {
+                const color = item.risk_score === 'HIGH'
+                    ? 'bg-rose-500/10 text-rose-400'
+                    : item.risk_score === 'MEDIUM'
+                    ? 'bg-amber-500/10 text-amber-400'
+                    : 'bg-emerald-500/10 text-emerald-400';
+                listEl.innerHTML += `
+                    <div class="p-3 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between text-xs hover:border-slate-700 transition">
+                        <div>
+                            <p class="font-mono font-bold text-white">${item.id}</p>
+                            <p class="text-[10px] text-slate-500 truncate max-w-[125px]">${item.creditor_name || ''}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-mono font-bold">£${(item.amount || 0).toLocaleString()}</p>
+                            <span class="text-[9px] px-1.5 py-0.5 rounded-full font-bold tracking-tight uppercase ${color}">${item.risk_score}</span>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('stat-total').innerText = LEDGER_CACHE.length;
+            document.getElementById('stat-high').innerText = LEDGER_CACHE.filter(t => t.risk_score === 'HIGH').length;
+            document.getElementById('stat-medium').innerText = LEDGER_CACHE.filter(t => t.risk_score === 'MEDIUM').length;
+            document.getElementById('stat-low').innerText = LEDGER_CACHE.filter(t => t.risk_score === 'LOW').length;
+        }
+
+        async function refreshLedger() {
+            try {
+                const res = await fetch('/api/v1/ledger');
+                const data = await res.json();
+                const entries = Object.values(data);
+                const tableEl = document.getElementById('full-ledger-table');
+                if (!entries.length) {
+                    tableEl.innerHTML = '<div class="text-slate-500 italic">// No transactions yet.</div>';
+                    return;
+                }
+                tableEl.innerHTML = `
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-[10px] text-slate-500 uppercase border-b border-slate-800">
+                                <th class="pb-2 pr-4">TX ID</th>
+                                <th class="pb-2 pr-4">Debtor</th>
+                                <th class="pb-2 pr-4">Creditor</th>
+                                <th class="pb-2 pr-4">Amount</th>
+                                <th class="pb-2 pr-4">Risk</th>
+                                <th class="pb-2">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${entries.map(t => `
+                            <tr class="border-b border-slate-800/50 hover:bg-slate-800/20 transition">
+                                <td class="py-2 pr-4 font-mono text-emerald-400">${t.id}</td>
+                                <td class="py-2 pr-4 text-slate-300">${t.debtor_name}</td>
+                                <td class="py-2 pr-4 text-slate-300">${t.creditor_name}</td>
+                                <td class="py-2 pr-4 font-mono">£${(t.amount || 0).toLocaleString()}</td>
+                                <td class="py-2 pr-4">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        t.risk_score === 'HIGH' ? 'bg-rose-500/10 text-rose-400' :
+                                        t.risk_score === 'MEDIUM' ? 'bg-amber-500/10 text-amber-400' :
+                                        t.risk_score ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                                    }">${t.risk_score || t.status}</span>
+                                </td>
+                                <td class="py-2 font-mono text-[10px] text-slate-400">${t.recommended_action || '—'}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>`;
+            } catch (e) {
+                document.getElementById('full-ledger-table').innerHTML = `<div class="text-rose-400">Failed to fetch ledger: ${e.message}</div>`;
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Tab switcher
+        // ---------------------------------------------------------------
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-emerald-500/10', 'text-emerald-400', 'border', 'border-emerald-500/20');
+                el.classList.add('text-slate-400', 'hover:text-slate-200');
+            });
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const btn = document.getElementById(`btn-${tabId}`);
+            btn.classList.add('bg-emerald-500/10', 'text-emerald-400', 'border', 'border-emerald-500/20');
+            btn.classList.remove('text-slate-400', 'hover:text-slate-200');
+            if (tabId === 'ledger') refreshLedger();
+        }
+    </script>
+</body>
+</html>
