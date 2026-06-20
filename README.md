@@ -1,6 +1,6 @@
 # Asynchronous Transaction Risk & AML Triaging Engine
 
-A production-grade, FCA-compliant Anti-Money Laundering triaging system built for UK FinTech/RegTech contexts. Validates ISO 20022 (pacs.008) financial transactions, runs a simulated multi-agent compliance pipeline powered by **Claude AI**, and broadcasts live decisions via WebSockets.
+A production-grade, FCA-compliant Anti-Money Laundering triaging system built for UK FinTech/RegTech contexts. Validates ISO 20022 (pacs.008) financial transactions, runs a real multi-agent compliance pipeline powered by **CrewAI + Gemini 2.0** (with Claude fallback), and broadcasts live decisions via WebSockets.
 
 ---
 
@@ -25,7 +25,7 @@ POST /api/v1/transaction
 │  [Agent 2: OSINT Investigator]                          │
 │   Simulates UK Companies House API lookup for UBO data  │
 │          │                                              │
-│  [Agent 3: Risk Scorer → Claude Opus]                   │
+│  [Agent 3: Risk Scorer → Gemini 2.0 / Claude Opus]      │
 │   Evaluates MLR-2017 red flags, returns structured JSON │
 └────────┬────────────────────────────────────────────────┘
          │
@@ -77,7 +77,9 @@ POST /api/v1/transaction
 |---|---|
 | API Framework | FastAPI |
 | Data Validation | Pydantic v2 (ISO 20022 schemas) |
-| AI Evaluation | Anthropic Claude Opus (`claude-opus-4-8`) |
+| Agent Orchestration | CrewAI 1.14 (real Agent / Task / Crew) |
+| Primary LLM | Google Gemini 2.0 Flash |
+| Fallback LLM | Anthropic Claude Opus (`claude-opus-4-8`) |
 | Real-Time Updates | FastAPI WebSockets |
 | Test Data | Faker (`en_GB` locale) |
 | HTTP Client | httpx |
@@ -97,8 +99,11 @@ uv venv .venv
 source .venv/bin/activate
 uv pip install -r requirements.txt
 
-# 3. (Optional) Set Claude API key for AI-powered risk scoring
-export ANTHROPIC_API_KEY=sk-ant-...
+# 3. Configure environment variables
+cp .env.example .env
+# Edit .env and add your API key:
+#   GEMINI_API_KEY=your-gemini-key        ← primary LLM
+#   ANTHROPIC_API_KEY=your-claude-key     ← optional fallback
 
 # 4. Start the server
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
