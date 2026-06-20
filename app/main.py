@@ -15,7 +15,7 @@ logger = logging.getLogger("AMLEngine")
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 app = FastAPI(
-    title="Asynchronous Transaction Risk & AML Triaging Engine2",
+    title="Asynchronous Transaction Risk & AML Triaging Engine",
     description="FCA-compliant ISO 20022 transactional triaging engine using multi-agent simulators.",
     version="1.0.0"
 )

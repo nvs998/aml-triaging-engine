@@ -13,7 +13,34 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #0b1329; }
         ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 4px; }
+
+        /* ─── Light Mode ─── */
+        html.light body { background-color: #f8fafc; color: #1e293b; }
+        html.light header { background: rgba(255,255,255,0.95) !important; border-color: #e2e8f0 !important; }
+        html.light footer { background: rgba(255,255,255,0.4) !important; border-color: #e2e8f0 !important; }
+        html.light .bg-slate-900 { background-color: #ffffff !important; }
+        html.light .bg-slate-950 { background-color: #f1f5f9 !important; }
+        html.light .bg-slate-800 { background-color: #e2e8f0 !important; }
+        html.light .border-slate-800 { border-color: #e2e8f0 !important; }
+        html.light .border-slate-700 { border-color: #cbd5e1 !important; }
+        html.light .text-white { color: #0f172a !important; }
+        html.light .text-slate-100 { color: #1e293b !important; }
+        html.light .text-slate-200 { color: #334155 !important; }
+        html.light .text-slate-300 { color: #475569 !important; }
+        html.light .text-slate-400 { color: #64748b !important; }
+        html.light .text-slate-500 { color: #94a3b8 !important; }
+        html.light ::-webkit-scrollbar-track { background: #f1f5f9; }
+        html.light .bg-slate-950\/60 { background-color: rgba(241,245,249,0.6) !important; }
+        html.light .bg-slate-900\/90 { background-color: rgba(255,255,255,0.9) !important; }
+        html.light .bg-slate-900\/40 { background-color: rgba(255,255,255,0.4) !important; }
+        html.light .bg-slate-800\/20 { background-color: rgba(226,232,240,0.2) !important; }
+        html.light .hover\:bg-slate-800:hover { background-color: #f1f5f9 !important; }
+        html.light .hover\:bg-slate-700:hover { background-color: #e2e8f0 !important; }
+        html.light .hover\:text-slate-200:hover { color: #1e293b !important; }
+        html.light #theme-toggle { border-color: #e2e8f0; color: #64748b; }
+        html.light #theme-toggle:hover { border-color: #94a3b8; color: #0f172a; }
     </style>
+    <script>if (localStorage.getItem('theme') === 'light') document.documentElement.classList.add('light');</script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-emerald-500 selection:text-slate-950">
 
@@ -31,6 +58,9 @@
             </div>
         </div>
         <div class="flex flex-wrap gap-4 items-center">
+            <button id="theme-toggle" onclick="toggleTheme()" class="p-2 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition" title="Toggle light/dark mode">
+                <i id="theme-icon" class="fa-solid fa-moon text-sm"></i>
+            </button>
             <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2 px-3.5 text-center min-w-[95px]">
                 <p class="text-[10px] text-slate-400 uppercase font-semibold">Processed</p>
                 <p id="stat-total" class="text-base font-bold text-white font-mono mt-0.5">0</p>
@@ -227,6 +257,16 @@
     </footer>
 
     <script>
+        // ─── Theme toggle ───
+        function toggleTheme() {
+            const isLight = document.documentElement.classList.toggle('light');
+            document.getElementById('theme-icon').className = isLight ? 'fa-solid fa-sun text-sm' : 'fa-solid fa-moon text-sm';
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        }
+        if (document.documentElement.classList.contains('light')) {
+            document.getElementById('theme-icon').className = 'fa-solid fa-sun text-sm';
+        }
+
         // ---------------------------------------------------------------
         // WebSocket — connects to backend and receives live agent events
         // ---------------------------------------------------------------
