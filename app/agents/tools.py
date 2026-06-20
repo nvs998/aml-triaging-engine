@@ -1,6 +1,9 @@
-import asyncio
+import json
+import time
 import logging
 from typing import Dict, Any, Optional
+
+from crewai.tools import BaseTool
 
 logger = logging.getLogger("AMLEngine.OSINT")
 
@@ -50,18 +53,35 @@ MOCK_COMPANIES_HOUSE_REGISTRY: Dict[str, Dict[str, Any]] = {
 }
 
 
-class CompaniesHouseClient:
-    """
-    Simulates a secure client connection to the UK Companies House API.
-    In production: https://api.company-information.service.gov.uk/company/{company_number}
-    """
+class CompaniesHouseTool(BaseTool):
+    name: str = "companies_house_lookup"
+    description: str = (
+        "Look up a UK company by its Companies House registration number. "
+        "Returns company status, incorporation date, nature of business, "
+        "registered address, and Ultimate Beneficial Owner (PSC) details. "
+        "Input must be the raw registration number string, e.g. UK12984401."
+    )
 
+    def _run(self, company_number: str) -> str:
+        logger.info("[CompaniesHouseAPI] Querying registry for ID: %s", company_number)
+        time.sleep(0.8)  # simulate API latency
+        clean_num = company_number.strip().upper()
+        record = MOCK_COMPANIES_HOUSE_REGISTRY.get(clean_num)
+        if record:
+            logger.info("[CompaniesHouseAPI] Match found: '%s'", record["company_name"])
+            return json.dumps(record, indent=2)
+        logger.warning("[CompaniesHouseAPI] No registry match for ID: %s", company_number)
+        return f"No registry match found for Companies House ID: {company_number}"
+
+
+# Kept for backward-compatibility with any async callers outside CrewAI
+class CompaniesHouseClient:
     async def lookup_company(self, company_number: str) -> Optional[Dict[str, Any]]:
-        logger.info(f"[CompaniesHouseAPI] Querying registry for ID: {company_number}")
+        import asyncio
+        logger.info("[CompaniesHouseAPI] Async query for ID: %s", company_number)
         await asyncio.sleep(0.8)
         clean_num = company_number.strip().upper()
-        if clean_num in MOCK_COMPANIES_HOUSE_REGISTRY:
-            logger.info(f"[CompaniesHouseAPI] Match found: '{MOCK_COMPANIES_HOUSE_REGISTRY[clean_num]['company_name']}'")
-            return MOCK_COMPANIES_HOUSE_REGISTRY[clean_num]
-        logger.warning(f"[CompaniesHouseAPI] No registry match found for ID: {company_number}")
-        return None
+        record = MOCK_COMPANIES_HOUSE_REGISTRY.get(clean_num)
+        if record:
+            logger.info("[CompaniesHouseAPI] Match found: '%s'", record["company_name"])
+        return record

@@ -1,69 +1,241 @@
 import asyncio
+import json
 import logging
 from datetime import datetime
 
+from crewai import Agent, Task, Crew, Process, LLM
+from crewai.tasks.task_output import TaskOutput
+
 from app.parser.models import ISO20022Payload
-from app.agents.tools import CompaniesHouseClient
-from app.services.claude_client import ClaudeAMLClient
+from app.agents.tools import CompaniesHouseTool, CompaniesHouseClient
+from app.services.claude_client import ClaudeAMLClient, RiskAssessment
 from app.services.websocket_manager import websocket_manager
 from app.ledger import TRANSACTION_LEDGER
+from app.config import ANTHROPIC_API_KEY, GEMINI_API_KEY
 
 logger = logging.getLogger("AMLEngine.Crew")
 
-companies_house_client = CompaniesHouseClient()
-claude_client = ClaudeAMLClient()
+
+# ---------------------------------------------------------------------------
+# WebSocket callback factory — bridges sync CrewAI callbacks → async FastAPI
+# ---------------------------------------------------------------------------
+
+def _ws_callback(tx_id: str, agent_name: str, loop: asyncio.AbstractEventLoop):
+    def callback(output: TaskOutput):
+        asyncio.run_coroutine_threadsafe(
+            websocket_manager.broadcast({
+                "event": "AGENT_STEP",
+                "tx_id": tx_id,
+                "agent": agent_name,
+                "log": output.raw[:600],
+            }),
+            loop,
+        )
+    return callback
 
 
-async def run_agentic_triage_loop(tx_id: str, payload: ISO20022Payload):
-    logger.info(f"Starting multi-agent evaluation for: {tx_id}")
+# ---------------------------------------------------------------------------
+# Real CrewAI pipeline (requires ANTHROPIC_API_KEY)
+# ---------------------------------------------------------------------------
 
-    # Agent 1: Sifter
+async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
+    loop = asyncio.get_event_loop()
+
+    # llm = LLM(
+    #     model="anthropic/claude-opus-4-8",
+    #     api_key=ANTHROPIC_API_KEY,
+    #     max_tokens=2048,
+    # )
+
+    llm = LLM(
+        model="gemini/gemini-2.5-flash",
+        api_key=GEMINI_API_KEY,
+        max_tokens=2048,
+    )
+
+    transaction_json = json.dumps({
+        "message_identifier": payload.message_identifier,
+        "debtor": payload.debtor.model_dump(),
+        "creditor": payload.creditor.model_dump(),
+        "transaction": payload.transaction.model_dump(),
+    }, indent=2)
+
+    companies_house_num = payload.creditor.companies_house_number
+
+    # --- Agents ---
+    sifter = Agent(
+        role="Transaction Sifting Agent",
+        goal="Identify structural and behavioural red flags in the ISO 20022 transaction",
+        backstory=(
+            "You are a specialist in detecting financial crime patterns at a UK Tier-1 bank. "
+            "You focus on structuring and smurfing — payments deliberately kept just under "
+            "the £10,000 reporting threshold to evade FCA mandatory disclosure."
+        ),
+        llm=llm,
+        allow_delegation=False,
+        verbose=True,
+    )
+
+    osint = Agent(
+        role="OSINT Corporate Investigator",
+        goal="Verify the creditor's corporate identity and Ultimate Beneficial Owner via Companies House",
+        backstory=(
+            "You are a corporate intelligence analyst with access to the UK Companies House registry. "
+            "You flag dormant shell companies, offshore PSC ownership structures, and newly "
+            "incorporated entities used as money laundering vehicles."
+        ),
+        tools=[CompaniesHouseTool()],
+        llm=llm,
+        allow_delegation=False,
+        verbose=True,
+    )
+
+    risk_scorer = Agent(
+        role="Senior AML Compliance Officer",
+        goal="Synthesize all findings and produce a final structured risk assessment",
+        backstory=(
+            "You are the Senior Compliance Officer at a UK financial institution, responsible for "
+            "applying FCA MLR-2017 rules to produce legally defensible, explainable decisions. "
+            "Your assessments must withstand scrutiny from the Financial Ombudsman Service."
+        ),
+        llm=llm,
+        allow_delegation=False,
+        verbose=True,
+    )
+
+    # --- Tasks ---
+    task1 = Task(
+        description=(
+            f"Analyse this ISO 20022 transaction for structural red flags:\n\n{transaction_json}\n\n"
+            "Specifically check: is the amount between £9,000 and £9,999 (smurfing indicator)? "
+            "Does the payment reference contain vague or suspicious text? "
+            "Report your findings in 2-3 sentences."
+        ),
+        expected_output="A concise structural analysis noting any smurfing, threshold-avoidance, or reference red flags.",
+        agent=sifter,
+        callback=_ws_callback(tx_id, "Sifting Agent", loop),
+    )
+
+    task2 = Task(
+        description=(
+            f"Investigate the creditor entity in this transaction:\n\n{transaction_json}\n\n"
+            + (
+                f"The creditor has Companies House number: {companies_house_num}. "
+                "Use the companies_house_lookup tool with that number to retrieve their registry record. "
+                "Report the company status, incorporation date, and full UBO/PSC details."
+                if companies_house_num
+                else
+                "The creditor has no Companies House number — treat as a private individual. "
+                "No registry lookup is needed. State that the payee is an unregistered private consumer."
+            )
+        ),
+        expected_output="A summary of the corporate entity's registry status and UBO details, or confirmation that the payee is a private individual.",
+        agent=osint,
+        callback=_ws_callback(tx_id, "OSINT Investigator", loop),
+    )
+
+    task3 = Task(
+        description=(
+            "Using the Sifting Agent's structural analysis and the OSINT Investigator's registry findings, "
+            "produce a final AML risk assessment applying UK MLR-2017 rules.\n\n"
+            "Rules to apply:\n"
+            "- Amount £9,000–£9,999 → MEDIUM / ESCALATE_TO_MLRO (structuring)\n"
+            "- Dormant company or offshore UBO (Seychelles/BVI/Cayman) → HIGH / FREEZE_ACCOUNT\n"
+            "- Amount ≥ £100,000 with unverified entity → HIGH / FREEZE_ACCOUNT\n"
+            "- Clean retail transaction → LOW / ALLOW\n\n"
+            "Return ONLY a JSON object with these exact keys: "
+            "risk_score (LOW/MEDIUM/HIGH), confidence_score (0.0–1.0), "
+            "reasoning (string, max 80 words), recommended_action (ALLOW/ESCALATE_TO_MLRO/FREEZE_ACCOUNT)."
+        ),
+        expected_output='{"risk_score": "...", "confidence_score": 0.0, "reasoning": "...", "recommended_action": "..."}',
+        output_pydantic=RiskAssessment,
+        agent=risk_scorer,
+        callback=_ws_callback(tx_id, "Risk Scorer", loop),
+    )
+
+    crew = Crew(
+        agents=[sifter, osint, risk_scorer],
+        tasks=[task1, task2, task3],
+        process=Process.sequential,
+        verbose=True,
+    )
+
+    await crew.kickoff_async(inputs={})
+
+    # Extract structured output from final task
+    if task3.output and task3.output.pydantic:
+        assessment: RiskAssessment = task3.output.pydantic
+    else:
+        raw = task3.output.raw if task3.output else "{}"
+        assessment = RiskAssessment.model_validate_json(raw)
+
+    risk_score = assessment.risk_score
+    TRANSACTION_LEDGER[tx_id].update({
+        "status": "FROZEN" if risk_score == "HIGH" else "ESCALATED" if risk_score == "MEDIUM" else "APPROVED",
+        "risk_score": risk_score,
+        "confidence_score": assessment.confidence_score,
+        "reasoning": assessment.reasoning,
+        "recommended_action": assessment.recommended_action,
+        "completed_at": datetime.utcnow().isoformat(),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Deterministic fallback pipeline (no API key required)
+# ---------------------------------------------------------------------------
+
+async def _run_deterministic_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
     await asyncio.sleep(1.0)
     await websocket_manager.broadcast({
         "event": "AGENT_STEP",
         "tx_id": tx_id,
         "agent": "Sifting Agent",
-        "log": f"Successfully parsed ISO payload {payload.message_identifier}. Extracted amount: {payload.transaction.amount} GBP. Running transactional structure rules..."
+        "log": (
+            f"[Fallback] Parsed ISO payload {payload.message_identifier}. "
+            f"Amount: £{payload.transaction.amount:,.2f}. Running structure rules..."
+        ),
     })
 
-    # Agent 2: OSINT Investigator
     companies_house_num = payload.creditor.companies_house_number
     record = None
+    client = CompaniesHouseClient()
 
     if companies_house_num:
-        record = await companies_house_client.lookup_company(companies_house_num)
+        record = await client.lookup_company(companies_house_num)
         if record:
             psc = record["person_with_significant_control"]
-            ubo_details = f"{psc['name']} ({psc['nationality']} / Resident in {psc['country_of_residence']})"
             await websocket_manager.broadcast({
                 "event": "AGENT_STEP",
                 "tx_id": tx_id,
                 "agent": "OSINT Investigator",
-                "log": f"Companies House lookup successful for {companies_house_num}. Company: {record['company_name']}. Status: {record['status']}. UBO: {ubo_details}."
+                "log": (
+                    f"[Fallback] Companies House lookup: {record['company_name']} "
+                    f"({record['status']}). UBO: {psc['name']} — {psc['country_of_residence']}."
+                ),
             })
         else:
             await websocket_manager.broadcast({
                 "event": "AGENT_STEP",
                 "tx_id": tx_id,
                 "agent": "OSINT Investigator",
-                "log": f"No registry match found for Companies House ID {companies_house_num}. Entity could not be verified."
+                "log": f"[Fallback] No registry match for {companies_house_num}.",
             })
     else:
         await websocket_manager.broadcast({
             "event": "AGENT_STEP",
             "tx_id": tx_id,
             "agent": "OSINT Investigator",
-            "log": "Bypassed corporate check. Payee evaluated as a private consumer account."
+            "log": "[Fallback] No Companies House number — private consumer account.",
         })
 
-    # Agent 3: Risk Scorer
     await websocket_manager.broadcast({
         "event": "AGENT_STEP",
         "tx_id": tx_id,
         "agent": "Risk Scorer",
-        "log": "Forwarding metadata and registry findings to the Claude AI compliance evaluator..."
+        "log": "[Fallback] Applying deterministic MLR-2017 rule engine...",
     })
 
+    claude_client = ClaudeAMLClient()
     evaluation = await claude_client.evaluate_risk(
         transaction=payload.transaction.model_dump(),
         company_metadata=record,
@@ -76,14 +248,37 @@ async def run_agentic_triage_loop(tx_id: str, payload: ISO20022Payload):
         "confidence_score": evaluation["confidence_score"],
         "reasoning": evaluation["reasoning"],
         "recommended_action": evaluation["recommended_action"],
-        "completed_at": datetime.utcnow().isoformat()
+        "completed_at": datetime.utcnow().isoformat(),
     })
+
+
+# ---------------------------------------------------------------------------
+# Public entry point called by FastAPI background task
+# ---------------------------------------------------------------------------
+
+async def run_agentic_triage_loop(tx_id: str, payload: ISO20022Payload) -> None:
+    logger.info("Starting triage for %s (CrewAI=%s)", tx_id, bool(GEMINI_API_KEY))
+    try:
+        if GEMINI_API_KEY:
+            await _run_crew_pipeline(tx_id, payload)
+        else:
+            await _run_deterministic_pipeline(tx_id, payload)
+    except Exception as e:
+        logger.error("Pipeline failed for %s: %s", tx_id, e)
+        TRANSACTION_LEDGER[tx_id].update({
+            "status": "ERROR",
+            "risk_score": "HIGH",
+            "confidence_score": 0.0,
+            "reasoning": f"Pipeline error — manual review required. ({str(e)[:200]})",
+            "recommended_action": "ESCALATE_TO_MLRO",
+            "completed_at": datetime.utcnow().isoformat(),
+        })
 
     await websocket_manager.broadcast({
         "event": "TRIAGE_COMPLETE",
         "tx_id": tx_id,
-        "payload": TRANSACTION_LEDGER[tx_id]
+        "payload": TRANSACTION_LEDGER[tx_id],
     })
 
-    if risk_score == "HIGH":
-        logger.warning(f"FREEZE PROTOCOL ENGAGED: Account {payload.creditor.account_number} frozen.")
+    if TRANSACTION_LEDGER[tx_id].get("risk_score") == "HIGH":
+        logger.warning("FREEZE PROTOCOL ENGAGED: Account %s frozen.", payload.creditor.account_number)
