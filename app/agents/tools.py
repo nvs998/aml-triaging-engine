@@ -1,11 +1,19 @@
 import json
-import time
 import logging
 from typing import Dict, Any, Optional
 
+import httpx
 from crewai.tools import BaseTool
 
+from app.config import COMPANY_HOUSE_KEY
+
 logger = logging.getLogger("AMLEngine.OSINT")
+
+COMPANIES_HOUSE_BASE_URL = "https://api.company-information.service.gov.uk"
+
+# ---------------------------------------------------------------------------
+# Mock registry — used when COMPANY_HOUSE_KEY is not set or for unknown numbers
+# ---------------------------------------------------------------------------
 
 MOCK_COMPANIES_HOUSE_REGISTRY: Dict[str, Dict[str, Any]] = {
     "UK12984401": {
@@ -53,35 +61,152 @@ MOCK_COMPANIES_HOUSE_REGISTRY: Dict[str, Dict[str, Any]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Real API helpers
+# ---------------------------------------------------------------------------
+
+def _strip_prefix(company_number: str) -> str:
+    """Real Companies House numbers have no 'UK' prefix (e.g. '12984401')."""
+    clean = company_number.strip().upper()
+    if clean.startswith("UK"):
+        clean = clean[2:]
+    return clean
+
+
+def _fetch_company_profile(company_number: str, api_key: str) -> Optional[Dict[str, Any]]:
+    url = f"{COMPANIES_HOUSE_BASE_URL}/company/{company_number}"
+    try:
+        r = httpx.get(
+           url, auth=(api_key, ""), timeout=10)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
+        logger.error("[CompaniesHouseAPI] HTTP error fetching profile for %s: %s", company_number, e)
+        return None
+    except httpx.RequestError as e:
+        logger.error("[CompaniesHouseAPI] Network error fetching profile for %s: %s", company_number, e)
+        return None
+
+
+def _fetch_pscs(company_number: str, api_key: str) -> list:
+    url = f"{COMPANIES_HOUSE_BASE_URL}/company/{company_number}/persons-with-significant-control"
+    try:
+        r = httpx.get(url, auth=(api_key, ""), timeout=10)
+        if r.status_code == 404:
+            return []
+        r.raise_for_status()
+        return r.json().get("items", [])
+    except (httpx.HTTPStatusError, httpx.RequestError) as e:
+        logger.error("[CompaniesHouseAPI] Error fetching PSCs for %s: %s", company_number, e)
+        return []
+
+
+def _map_to_internal(profile: Dict[str, Any], pscs: list) -> Dict[str, Any]:
+    """Map real Companies House API response to our internal record format."""
+    address_parts = profile.get("registered_office_address", {})
+    address = ", ".join(filter(None, [
+        address_parts.get("address_line_1"),
+        address_parts.get("address_line_2"),
+        address_parts.get("locality"),
+        address_parts.get("postal_code"),
+    ]))
+
+    sic_codes = profile.get("sic_codes", [])
+    nature_of_business = sic_codes[0] if sic_codes else "Unknown"
+
+    psc_data = None
+    if pscs:
+        psc = pscs[0]
+        natures = psc.get("natures_of_control", [])
+        share_pct = 0.0
+        for nature in natures:
+            if "75-to-100-percent" in nature:
+                share_pct = 87.5
+            elif "50-to-75-percent" in nature:
+                share_pct = 62.5
+            elif "25-to-50-percent" in nature:
+                share_pct = 37.5
+
+        psc_data = {
+            "name": psc.get("name", "Unknown"),
+            "nationality": psc.get("nationality", "Unknown"),
+            "country_of_residence": psc.get("country_of_residence", "Unknown"),
+            "share_percentage": share_pct,
+        }
+
+    return {
+        "company_name": profile.get("company_name", "Unknown"),
+        "status": profile.get("company_status", "Unknown").capitalize(),
+        "incorporation_date": profile.get("date_of_creation", "Unknown"),
+        "company_type": profile.get("type", "Unknown"),
+        "nature_of_business": nature_of_business,
+        "registered_address": address,
+        "person_with_significant_control": psc_data,
+    }
+
+
+def lookup_company_sync(company_number: str) -> Optional[Dict[str, Any]]:
+    """
+    Core lookup used by both CompaniesHouseTool and CompaniesHouseClient.
+    Uses real API when COMPANY_HOUSE_KEY is set, falls back to mock otherwise.
+    """
+    clean = company_number.strip().upper()
+
+    # Always check mock registry first for known test numbers (UK-prefixed)
+    if clean in MOCK_COMPANIES_HOUSE_REGISTRY:
+        logger.info("[CompaniesHouseAPI] Using mock registry for test number: %s", clean)
+        return MOCK_COMPANIES_HOUSE_REGISTRY[clean]
+
+    if not COMPANY_HOUSE_KEY:
+        logger.info("[CompaniesHouseAPI] No API key — no match for %s", clean)
+        return None
+
+    # Real Companies House numbers have no 'UK' prefix
+    api_number = _strip_prefix(clean)
+    logger.info("[CompaniesHouseAPI] Live query for company number: %s", api_number)
+
+    profile = _fetch_company_profile(api_number, COMPANY_HOUSE_KEY)
+    if not profile:
+        logger.warning("[CompaniesHouseAPI] No profile found for %s", api_number)
+        return None
+
+    pscs = _fetch_pscs(api_number, COMPANY_HOUSE_KEY)
+    record = _map_to_internal(profile, pscs)
+    logger.info("[CompaniesHouseAPI] Live record retrieved: %s (%s)", record["company_name"], record["status"])
+    return record
+
+
+# ---------------------------------------------------------------------------
+# CrewAI tool (sync)
+# ---------------------------------------------------------------------------
+
 class CompaniesHouseTool(BaseTool):
     name: str = "companies_house_lookup"
     description: str = (
         "Look up a UK company by its Companies House registration number. "
         "Returns company status, incorporation date, nature of business, "
         "registered address, and Ultimate Beneficial Owner (PSC) details. "
-        "Input must be the raw registration number string, e.g. UK12984401."
+        "Input must be the raw registration number string, e.g. UK12984401 or 12984401."
     )
 
     def _run(self, company_number: str) -> str:
-        logger.info("[CompaniesHouseAPI] Querying registry for ID: %s", company_number)
-        time.sleep(0.8)  # simulate API latency
-        clean_num = company_number.strip().upper()
-        record = MOCK_COMPANIES_HOUSE_REGISTRY.get(clean_num)
+        record = lookup_company_sync(company_number)
+        print(f"[CompaniesHouseTool] Lookup result for {company_number}: {record}")
         if record:
-            logger.info("[CompaniesHouseAPI] Match found: '%s'", record["company_name"])
             return json.dumps(record, indent=2)
-        logger.warning("[CompaniesHouseAPI] No registry match for ID: %s", company_number)
         return f"No registry match found for Companies House ID: {company_number}"
 
 
-# Kept for backward-compatibility with any async callers outside CrewAI
+# ---------------------------------------------------------------------------
+# Async client for the deterministic fallback pipeline
+# ---------------------------------------------------------------------------
+
 class CompaniesHouseClient:
     async def lookup_company(self, company_number: str) -> Optional[Dict[str, Any]]:
         import asyncio
-        logger.info("[CompaniesHouseAPI] Async query for ID: %s", company_number)
-        await asyncio.sleep(0.8)
-        clean_num = company_number.strip().upper()
-        record = MOCK_COMPANIES_HOUSE_REGISTRY.get(clean_num)
-        if record:
-            logger.info("[CompaniesHouseAPI] Match found: '%s'", record["company_name"])
-        return record
+        # Run the sync HTTP calls in a thread so we don't block the event loop
+        return await asyncio.get_event_loop().run_in_executor(
+            None, lookup_company_sync, company_number
+        )
