@@ -275,6 +275,21 @@
         let activeProcess = false;
         const LEDGER_CACHE = [];
 
+        // Load completed transactions from DB on page load
+        async function seedFromDB() {
+            try {
+                const res = await fetch('/api/v1/ledger');
+                const data = await res.json();
+                const entries = Object.values(data).filter(t => t.status !== 'PROCESSING');
+                entries.forEach(t => LEDGER_CACHE.push(t));
+                renderLedgers();
+                updateStats();
+            } catch (e) {
+                console.warn('Could not seed ledger from DB:', e);
+            }
+        }
+        seedFromDB();
+
         function connectWebSocket() {
             socket = new WebSocket('ws://localhost:8000/ws/compliance');
 

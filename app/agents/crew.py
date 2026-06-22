@@ -7,10 +7,10 @@ from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tasks.task_output import TaskOutput
 
 from app.parser.models import ISO20022Payload
-from app.agents.tools import CompaniesHouseTool, CompaniesHouseClient
+from app.agents.tools import CompaniesHouseTool, CompaniesHouseClient, LedgerQueryTool
 from app.services.claude_client import ClaudeAMLClient, RiskAssessment
 from app.services.websocket_manager import websocket_manager
-from app.ledger import TRANSACTION_LEDGER
+from app.ledger import update_transaction, get_transaction
 from app.config import ANTHROPIC_API_KEY, GEMINI_API_KEY
 
 logger = logging.getLogger("AMLEngine.Crew")
@@ -71,6 +71,7 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
             "You focus on structuring and smurfing — payments deliberately kept just under "
             "the £10,000 reporting threshold to evade FCA mandatory disclosure."
         ),
+        tools=[LedgerQueryTool()],
         llm=llm,
         allow_delegation=False,
         verbose=True,
@@ -106,12 +107,23 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
     # --- Tasks ---
     task1 = Task(
         description=(
-            f"Analyse this ISO 20022 transaction for structural red flags:\n\n{transaction_json}\n\n"
-            "Specifically check: is the amount between £9,000 and £9,999 (smurfing indicator)? "
-            "Does the payment reference contain vague or suspicious text? "
-            "Report your findings in 2-3 sentences."
+            f"Analyse this ISO 20022 transaction for AML red flags:\n\n{transaction_json}\n\n"
+            f"The debtor's account number is: {payload.debtor.account_number}\n\n"
+            "Step 1: Call the ledger_query tool with the debtor account number to retrieve "
+            "their full transaction history from the compliance ledger.\n\n"
+            "Step 2: Analyse the history for these behavioural patterns:\n"
+            "  - Structuring: multiple transactions just below £10,000 in a short period\n"
+            "  - Velocity: unusually high number of transactions recently\n"
+            "  - Escalation: amounts gradually increasing toward the £10,000 threshold\n"
+            "  - Clean history: consistent, regular payments suggesting legitimate activity\n\n"
+            "Step 3: Report your findings. Reference specific transaction dates and amounts "
+            "as evidence. Do not just state rules — explain what the pattern means in context."
         ),
-        expected_output="A concise structural analysis noting any smurfing, threshold-avoidance, or reference red flags.",
+        expected_output=(
+            "A structured analysis referencing actual historical transaction data. "
+            "Identifies any structuring, velocity, or escalation patterns with specific "
+            "evidence, or confirms the debtor has a clean transaction history."
+        ),
         agent=sifter,
         callback=_ws_callback(tx_id, "Sifting Agent", loop),
     )
@@ -170,7 +182,7 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
         assessment = RiskAssessment.model_validate_json(raw)
 
     risk_score = assessment.risk_score
-    TRANSACTION_LEDGER[tx_id].update({
+    await update_transaction(tx_id, {
         "status": "FROZEN" if risk_score == "HIGH" else "ESCALATED" if risk_score == "MEDIUM" else "APPROVED",
         "risk_score": risk_score,
         "confidence_score": assessment.confidence_score,
@@ -242,7 +254,7 @@ async def _run_deterministic_pipeline(tx_id: str, payload: ISO20022Payload) -> N
     )
 
     risk_score = evaluation["risk_score"]
-    TRANSACTION_LEDGER[tx_id].update({
+    await update_transaction(tx_id, {
         "status": "FROZEN" if risk_score == "HIGH" else "ESCALATED" if risk_score == "MEDIUM" else "APPROVED",
         "risk_score": risk_score,
         "confidence_score": evaluation["confidence_score"],
@@ -265,7 +277,7 @@ async def run_agentic_triage_loop(tx_id: str, payload: ISO20022Payload) -> None:
             await _run_deterministic_pipeline(tx_id, payload)
     except Exception as e:
         logger.error("Pipeline failed for %s: %s", tx_id, e)
-        TRANSACTION_LEDGER[tx_id].update({
+        await update_transaction(tx_id, {
             "status": "ERROR",
             "risk_score": "HIGH",
             "confidence_score": 0.0,
@@ -274,11 +286,12 @@ async def run_agentic_triage_loop(tx_id: str, payload: ISO20022Payload) -> None:
             "completed_at": datetime.utcnow().isoformat(),
         })
 
+    tx = await get_transaction(tx_id)
     await websocket_manager.broadcast({
         "event": "TRIAGE_COMPLETE",
         "tx_id": tx_id,
-        "payload": TRANSACTION_LEDGER[tx_id],
+        "payload": tx,
     })
 
-    if TRANSACTION_LEDGER[tx_id].get("risk_score") == "HIGH":
+    if tx and tx.get("risk_score") == "HIGH":
         logger.warning("FREEZE PROTOCOL ENGAGED: Account %s frozen.", payload.creditor.account_number)

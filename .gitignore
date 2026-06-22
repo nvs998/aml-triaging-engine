@@ -32,6 +32,9 @@ Thumbs.db
 # Logs
 *.log
 
+# SQLite database
+aml_ledger.db
+
 # CrewAI
 .crewai/
 
