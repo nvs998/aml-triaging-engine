@@ -1,11 +1,15 @@
 import json
 import logging
+import sqlite3
+from pathlib import Path
 from typing import Dict, Any, Optional
 
 import httpx
 from crewai.tools import BaseTool
 
 from app.config import COMPANY_HOUSE_KEY
+
+_DB_PATH = Path(__file__).parent.parent.parent / "aml_ledger.db"
 
 logger = logging.getLogger("AMLEngine.OSINT")
 
@@ -210,3 +214,68 @@ class CompaniesHouseClient:
         return await asyncio.get_event_loop().run_in_executor(
             None, lookup_company_sync, company_number
         )
+
+
+# ---------------------------------------------------------------------------
+# Ledger history tool — gives the Sifter Agent access to prior transactions
+# ---------------------------------------------------------------------------
+
+class LedgerQueryTool(BaseTool):
+    name: str = "ledger_query"
+    description: str = (
+        "Query the AML transaction ledger for all historical payments made by a specific "
+        "debtor account number. Use this to detect structuring patterns (multiple payments "
+        "just under £10,000), velocity abuse (many transactions in a short window), or to "
+        "confirm a debtor has a clean consistent history. "
+        "Input: the debtor account number string (e.g. '44891023')."
+    )
+
+    def _run(self, account_number: str) -> str:
+        account_number = account_number.strip()
+
+        if not _DB_PATH.exists():
+            return "Ledger database not initialised yet. No historical data available."
+
+        try:
+            conn = sqlite3.connect(str(_DB_PATH))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT timestamp, creditor_name, amount, status, risk_score
+                FROM transactions
+                WHERE debtor_account = ?
+                ORDER BY timestamp DESC
+                LIMIT 50
+                """,
+                (account_number,),
+            )
+            rows = [dict(r) for r in cursor.fetchall()]
+            conn.close()
+        except Exception as e:
+            return f"Ledger query error: {e}"
+
+        if not rows:
+            return (
+                f"No prior transactions found for account {account_number}. "
+                "This is either a first-time sender or a new account."
+            )
+
+        amounts = [r["amount"] for r in rows]
+        near_threshold = [a for a in amounts if 9_000 <= a <= 9_999]
+
+        lines = [f"Found {len(rows)} prior transaction(s) for account {account_number}:\n"]
+        for r in rows:
+            lines.append(
+                f"  {r['timestamp'][:10]}  £{r['amount']:>10,.2f}  "
+                f"→ {r['creditor_name']}  [{r['risk_score'] or 'PENDING'}]"
+            )
+
+        lines.append(f"\nAmount range : £{min(amounts):,.2f} – £{max(amounts):,.2f}")
+        lines.append(f"Average      : £{sum(amounts)/len(amounts):,.2f}")
+        if near_threshold:
+            lines.append(
+                f"⚠ Near-threshold (£9,000–£9,999): {len(near_threshold)} transaction(s) — structuring indicator"
+            )
+
+        return "\n".join(lines)

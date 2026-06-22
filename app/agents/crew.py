@@ -35,23 +35,22 @@ def _ws_callback(tx_id: str, agent_name: str, loop: asyncio.AbstractEventLoop):
 
 
 # ---------------------------------------------------------------------------
-# Real CrewAI pipeline (requires ANTHROPIC_API_KEY)
+# Real CrewAI pipeline (requires LLM_API_KEY)
 # ---------------------------------------------------------------------------
 
 async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
     loop = asyncio.get_event_loop()
-
-    # llm = LLM(
-    #     model="anthropic/claude-opus-4-8",
-    #     api_key=ANTHROPIC_API_KEY,
-    #     max_tokens=2048,
-    # )
 
     llm = LLM(
         model="gemini/gemini-2.5-flash",
         api_key=GEMINI_API_KEY,
         max_tokens=2048,
     )
+
+    local_llama = LLM(
+      model="ollama/llama3.1:8b",
+      base_url="http://localhost:11434",
+  )
 
     transaction_json = json.dumps({
         "message_identifier": payload.message_identifier,
@@ -65,14 +64,33 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
     # --- Agents ---
     sifter = Agent(
         role="Transaction Sifting Agent",
-        goal="Identify structural and behavioural red flags in the ISO 20022 transaction",
+        goal=(
+            "Detect behavioural and structural AML red flags by analysing the current "
+            "transaction against the debtor's full payment history, producing evidence-backed "
+            "findings that the Senior Compliance Officer can act on."
+        ),
         backstory=(
-            "You are a specialist in detecting financial crime patterns at a UK Tier-1 bank. "
-            "You focus on structuring and smurfing — payments deliberately kept just under "
-            "the £10,000 reporting threshold to evade FCA mandatory disclosure."
+            "You are a financial intelligence analyst at a UK Tier-1 bank with eight years "
+            "of experience in transaction monitoring under FCA supervision. You are trained "
+            "in JMLSG guidance (Joint Money Laundering Steering Group) and work closely with "
+            "the National Crime Agency's Financial Intelligence Unit when filing Suspicious "
+            "Activity Reports (SARs). "
+            "You know that money laundering happens in three stages — placement (getting dirty "
+            "money into the system), layering (moving it around to obscure the trail), and "
+            "integration (making it appear legitimate). Your job is to catch the earliest "
+            "signals of placement and layering before they reach the integration stage. "
+            "You have seen every structuring pattern: smurfing (splitting large sums into "
+            "sub-threshold payments), round-number avoidance (£9,999 instead of £10,000), "
+            "velocity abuse (many small payments in a short window), and escalation "
+            "(gradually increasing amounts testing the system). "
+            "You understand that context matters — a £9,850 payment from a business with "
+            "three years of clean payroll history is very different from the same amount sent "
+            "by a dormant account to a newly registered company. "
+            "Your analysis is the first thing the Senior Compliance Officer reads, so your "
+            "findings must be specific, evidence-based, and clearly state your confidence level."
         ),
         tools=[LedgerQueryTool()],
-        llm=llm,
+        llm=local_llama,
         allow_delegation=False,
         verbose=True,
     )
@@ -86,7 +104,7 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
             "incorporated entities used as money laundering vehicles."
         ),
         tools=[CompaniesHouseTool()],
-        llm=llm,
+        llm=local_llama,
         allow_delegation=False,
         verbose=True,
     )
@@ -107,22 +125,28 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
     # --- Tasks ---
     task1 = Task(
         description=(
-            f"Analyse this ISO 20022 transaction for AML red flags:\n\n{transaction_json}\n\n"
-            f"The debtor's account number is: {payload.debtor.account_number}\n\n"
-            "Step 1: Call the ledger_query tool with the debtor account number to retrieve "
-            "their full transaction history from the compliance ledger.\n\n"
-            "Step 2: Analyse the history for these behavioural patterns:\n"
-            "  - Structuring: multiple transactions just below £10,000 in a short period\n"
-            "  - Velocity: unusually high number of transactions recently\n"
-            "  - Escalation: amounts gradually increasing toward the £10,000 threshold\n"
-            "  - Clean history: consistent, regular payments suggesting legitimate activity\n\n"
-            "Step 3: Report your findings. Reference specific transaction dates and amounts "
-            "as evidence. Do not just state rules — explain what the pattern means in context."
+            f"Perform a full behavioural sift on this ISO 20022 transaction:\n\n{transaction_json}\n\n"
+            f"Debtor account number: {payload.debtor.account_number}\n\n"
+            "Step 1 — Retrieve history: Call the ledger_query tool with the debtor account "
+            "number to pull their full transaction history from the compliance ledger.\n\n"
+            "Step 2 — Analyse for these patterns (check each one explicitly):\n"
+            "  - Structuring: multiple payments just below £10,000 in a short window\n"
+            "  - Round-number avoidance: amounts like £9,999 or £4,999 that suggest deliberate threshold dodging\n"
+            "  - Velocity: abnormally high frequency of payments recently vs historical baseline\n"
+            "  - Escalation: amounts incrementally increasing across transactions\n"
+            "  - New payee: is this the first payment to this creditor, or a known recipient?\n"
+            "  - Payment reference: is the reference vague, generic, or inconsistent with the amount?\n"
+            "  - Clean baseline: regular, consistent payments that suggest legitimate business activity\n\n"
+            "Step 3 — Write your findings with specific evidence: cite exact dates, amounts, "
+            "and frequencies. Explain what the pattern means — not just what it is. "
+            "State your confidence level (HIGH / MEDIUM / LOW) and the single most "
+            "important signal the Senior Compliance Officer should weigh."
         ),
         expected_output=(
-            "A structured analysis referencing actual historical transaction data. "
-            "Identifies any structuring, velocity, or escalation patterns with specific "
-            "evidence, or confirms the debtor has a clean transaction history."
+            "A structured behavioural analysis with: (1) a summary of the debtor's transaction "
+            "history, (2) explicit findings on each pattern checked, (3) the key risk signal "
+            "with supporting evidence, and (4) a stated confidence level. "
+            "Written so the Senior Compliance Officer can act on it without re-reading the raw data."
         ),
         agent=sifter,
         callback=_ws_callback(tx_id, "Sifting Agent", loop),
@@ -170,6 +194,7 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
         tasks=[task1, task2, task3],
         process=Process.sequential,
         verbose=True,
+        tracing=True,
     )
 
     await crew.kickoff_async(inputs={})
