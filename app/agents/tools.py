@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import sqlite3
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -9,7 +10,7 @@ from crewai.tools import BaseTool
 
 from app.config import COMPANY_HOUSE_KEY
 
-_DB_PATH = Path(__file__).parent.parent.parent / "aml_ledger.db"
+_DB_PATH = Path(os.environ.get("DB_PATH", str(Path(__file__).parent.parent.parent / "aml_ledger.db")))
 
 logger = logging.getLogger("AMLEngine.OSINT")
 

@@ -41,3 +41,6 @@ aml_ledger.db
 # uv
 .uv/
 uv.lock
+
+# Azure deployment — contains secrets
+containerapp.yaml

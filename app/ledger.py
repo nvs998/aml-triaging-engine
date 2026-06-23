@@ -1,8 +1,9 @@
+import os
 import aiosqlite
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(__file__).parent.parent / "aml_ledger.db"
+DB_PATH = Path(os.getenv("DB_PATH", str(Path(__file__).parent.parent / "aml_ledger.db")))
 
 
 async def init_db() -> None:

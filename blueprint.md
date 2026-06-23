@@ -68,6 +68,77 @@ Step 5: Live Updates (WebSockets) and Outbound Webhooks
     -Action:Maintain a persistent WebSocket pool. When an agent finishes evaluating a transaction, broadcast the update to active UI clients. If the transaction risk returns HIGH, fire a mock outbound Webhook POST request to a third-party core banking microservice to freeze the target account.
 
 
+Step 6: LangChain Integration — Tools, Memory & RAG
+    -The Goal: Upgrade agent intelligence from rule-matching to genuine regulatory reasoning.
+     LangChain sits beneath CrewAI as the tooling and knowledge layer — CrewAI orchestrates
+     the agents, LangChain gives them richer things to work with. Both can coexist without
+     conflict as CrewAI's BaseTool is built on LangChain's tool interface internally.
+
+    Phase A — FCA Regulation RAG (Retrieval-Augmented Generation)
+        -Problem: The Risk Scorer currently applies rules you hardcoded into the prompt.
+         It cannot reason about edge cases or cite actual regulation text in its decisions.
+        -Action: Load the FCA MLR-2017 PDF and JMLSG guidance documents into a ChromaDB
+         vector store using LangChain's document loaders. Wrap the vector store as a
+         CrewAI-compatible FCARegulationTool. The Risk Scorer can now query the actual
+         regulation text at decision time and cite specific clauses in its reasoning output.
+        -Files to create:
+            app/rag/loader.py           # PDF ingestion, chunking, embedding pipeline
+            app/rag/vector_store.py     # ChromaDB setup and similarity search wrapper
+            app/agents/tools.py         # Add FCARegulationTool extending BaseTool
+        -Tech: langchain-community, chromadb, sentence-transformers (local embeddings)
+        -Why it matters to recruiters: RAG over regulatory documents is exactly how
+         compliance AI systems work at Tier-1 banks. It demonstrates you understand
+         the difference between an LLM that guesses regulation and one that retrieves it.
+
+    Phase B — LangGraph Conditional Routing
+        -Problem: Every transaction runs through all three agents regardless of complexity.
+         A clean £3,250 payroll payment wastes tokens running through the full OSINT pipeline.
+        -Action: Add a LangGraph state machine above the CrewAI pipeline that routes
+         transactions based on the Sifter's confidence output. Low-suspicion transactions
+         skip the OSINT agent entirely and go straight to the Risk Scorer, reducing cost
+         and latency by up to 40% on clean transactions.
+        -Routing logic:
+            Sifter confidence HIGH  → full pipeline (Sifter → OSINT → Risk Scorer)
+            Sifter confidence LOW   → fast path (Sifter → Risk Scorer only)
+            Sifter confidence MEDIUM + no Companies House number → fast path
+        -Files to create:
+            app/graph/state.py          # AMLState TypedDict definition
+            app/graph/router.py         # LangGraph StateGraph, nodes, conditional edges
+        -Tech: langgraph, langchain-core
+        -Why it matters to recruiters: Conditional agentic routing is what separates
+         a demo pipeline from a production system. It shows cost awareness and
+         architectural thinking beyond just "run all agents always".
+
+    Phase C — Human-in-the-Loop for HIGH Risk Transactions
+        -Problem: FREEZE_ACCOUNT decisions currently happen automatically with no human
+         oversight. Real compliance teams require a Money Laundering Reporting Officer
+         (MLRO) to approve account freezes before they execute.
+        -Action: Use LangGraph's interrupt_before mechanism to pause the graph after the
+         Risk Scorer returns HIGH risk. The transaction sits in a PENDING_MLRO_REVIEW state.
+         The dashboard shows a review queue. The MLRO approves or overrides via a new
+         REST endpoint (POST /api/v1/transaction/{tx_id}/review). The graph resumes with
+         the officer's decision recorded in the audit trail.
+        -Files to create:
+            app/graph/router.py         # Add interrupt node and resume logic
+            app/main.py                 # Add /review endpoint
+        -Tech: langgraph (interrupt_before), existing FastAPI + SQLite ledger
+        -Why it matters to recruiters: This is FCA SYSC compliance in code. Automated
+         decisions on account freezes without human sign-off would fail a regulatory audit.
+         Demonstrating you know this shows genuine FinTech domain knowledge.
+
+    Updated Folder Structure (Phase 6 additions):
+        app/
+        ├── rag/
+        │   ├── __init__.py
+        │   ├── loader.py               # LangChain PDF loader + text splitter
+        │   └── vector_store.py         # ChromaDB initialisation and query wrapper
+        │
+        ├── graph/
+        │   ├── __init__.py
+        │   ├── state.py                # LangGraph AMLState definition
+        │   └── router.py               # Conditional routing graph
+
+
 UK FCA Regulatory Frameworks:
 Addresses these guidelines:
     - Money Laundering Regulations 2017 (MLR 2017): Legally mandates that UK financial institutions identify the Ultimate Beneficial Owner (UBO) of corporate entities. Your Companies House Agent directly automates this UBO check.

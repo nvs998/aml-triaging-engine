@@ -90,7 +90,7 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
             "findings must be specific, evidence-based, and clearly state your confidence level."
         ),
         tools=[LedgerQueryTool()],
-        llm=local_llama,
+        llm=llm,
         allow_delegation=False,
         verbose=True,
     )
@@ -104,7 +104,7 @@ async def _run_crew_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
             "incorporated entities used as money laundering vehicles."
         ),
         tools=[CompaniesHouseTool()],
-        llm=local_llama,
+        llm=llm,
         allow_delegation=False,
         verbose=True,
     )
@@ -290,26 +290,130 @@ async def _run_deterministic_pipeline(tx_id: str, payload: ISO20022Payload) -> N
 
 
 # ---------------------------------------------------------------------------
+# Pure rule-based pipeline — no LLM required, always produces a result
+# ---------------------------------------------------------------------------
+
+async def _run_rules_pipeline(tx_id: str, payload: ISO20022Payload) -> None:
+    amount = payload.transaction.amount
+    companies_house_num = payload.creditor.companies_house_number
+
+    await asyncio.sleep(0.5)
+    await websocket_manager.broadcast({
+        "event": "AGENT_STEP",
+        "tx_id": tx_id,
+        "agent": "Sifting Agent",
+        "log": (
+            f"[Rules] ISO 20022 payload parsed. Amount: £{amount:,.2f}. "
+            "Checking structuring threshold and transaction patterns..."
+        ),
+    })
+
+    record = None
+    client = CompaniesHouseClient()
+    if companies_house_num:
+        record = await client.lookup_company(companies_house_num)
+        psc = (record or {}).get("person_with_significant_control") or {}
+        await websocket_manager.broadcast({
+            "event": "AGENT_STEP",
+            "tx_id": tx_id,
+            "agent": "OSINT Investigator",
+            "log": (
+                f"[Rules] Companies House lookup: {record['company_name']} ({record['status']}). "
+                f"UBO: {psc.get('name', 'Unknown')} — {psc.get('country_of_residence', 'Unknown')}."
+            ) if record else f"[Rules] No registry match for {companies_house_num}.",
+        })
+    else:
+        await websocket_manager.broadcast({
+            "event": "AGENT_STEP",
+            "tx_id": tx_id,
+            "agent": "OSINT Investigator",
+            "log": "[Rules] No Companies House number — private consumer account.",
+        })
+
+    await asyncio.sleep(0.5)
+
+    risk_score = "LOW"
+    confidence = 0.85
+    reasoning = "Transaction within normal parameters. No structuring indicators or high-risk entity flags detected."
+    action = "ALLOW"
+
+    if 9_000 <= amount <= 9_999:
+        risk_score = "MEDIUM"
+        confidence = 0.88
+        reasoning = (
+            f"Amount £{amount:,.2f} falls in the £9,000–£9,999 structuring band. "
+            "Possible round-number avoidance to bypass the £10,000 reporting threshold (MLR-2017 reg. 27)."
+        )
+        action = "ESCALATE_TO_MLRO"
+
+    if record:
+        status = record.get("status", "").lower()
+        psc = record.get("person_with_significant_control") or {}
+        country = psc.get("country_of_residence", "").lower()
+        offshore = any(c in country for c in ["seychelles", "bvi", "british virgin islands", "cayman"])
+        if status == "dormant" or offshore:
+            risk_score = "HIGH"
+            confidence = 0.95
+            reasoning = (
+                f"Creditor is a {'dormant' if status == 'dormant' else 'active'} company with "
+                f"offshore UBO in {psc.get('country_of_residence', 'unknown')}. "
+                "High probability of shell company misuse for layering (MLR-2017 reg. 28)."
+            )
+            action = "FREEZE_ACCOUNT"
+
+    if amount >= 100_000:
+        risk_score = "HIGH"
+        confidence = 0.92
+        reasoning = (
+            f"Transaction amount £{amount:,.2f} exceeds £100,000 threshold. "
+            "Enhanced due diligence mandatory under MLR-2017 reg. 33."
+        )
+        action = "FREEZE_ACCOUNT"
+
+    await websocket_manager.broadcast({
+        "event": "AGENT_STEP",
+        "tx_id": tx_id,
+        "agent": "Risk Scorer",
+        "log": f"[Rules] MLR-2017 rule engine complete. Risk: {risk_score} | Action: {action} | Confidence: {confidence}",
+    })
+
+    await update_transaction(tx_id, {
+        "status": "FROZEN" if risk_score == "HIGH" else "ESCALATED" if risk_score == "MEDIUM" else "APPROVED",
+        "risk_score": risk_score,
+        "confidence_score": confidence,
+        "reasoning": reasoning,
+        "recommended_action": action,
+        "completed_at": datetime.utcnow().isoformat(),
+    })
+
+
+# ---------------------------------------------------------------------------
 # Public entry point called by FastAPI background task
 # ---------------------------------------------------------------------------
 
 async def run_agentic_triage_loop(tx_id: str, payload: ISO20022Payload) -> None:
-    logger.info("Starting triage for %s (CrewAI=%s)", tx_id, bool(GEMINI_API_KEY))
+    logger.info("Starting triage for %s", tx_id)
     try:
         if GEMINI_API_KEY:
             await _run_crew_pipeline(tx_id, payload)
-        else:
+        elif ANTHROPIC_API_KEY:
             await _run_deterministic_pipeline(tx_id, payload)
+        else:
+            await _run_rules_pipeline(tx_id, payload)
     except Exception as e:
-        logger.error("Pipeline failed for %s: %s", tx_id, e)
-        await update_transaction(tx_id, {
-            "status": "ERROR",
-            "risk_score": "HIGH",
-            "confidence_score": 0.0,
-            "reasoning": f"Pipeline error — manual review required. ({str(e)[:200]})",
-            "recommended_action": "ESCALATE_TO_MLRO",
-            "completed_at": datetime.utcnow().isoformat(),
-        })
+        logger.error("Primary pipeline failed for %s: %s — falling back to rules engine", tx_id, e)
+        try:
+            await _run_rules_pipeline(tx_id, payload)
+        except Exception as e2:
+            logger.error("Rules pipeline also failed for %s: %s", tx_id, e2)
+            await update_transaction(tx_id, {
+                "status": "ERROR",
+                "risk_score": "HIGH",
+                "confidence_score": 0.0,
+                "reasoning": f"All pipelines failed — manual review required. ({str(e)[:200]})",
+                "recommended_action": "ESCALATE_TO_MLRO",
+                "completed_at": datetime.utcnow().isoformat(),
+            })
 
     tx = await get_transaction(tx_id)
     await websocket_manager.broadcast({

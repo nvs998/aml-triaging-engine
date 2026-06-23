@@ -1,0 +1,17 @@
+.env
+.venv/
+aml_triaging/
+aml_ledger.db
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.git/
+.github/
+src/
+static/
+package.json
+package-lock.json
+*.md
+*.db

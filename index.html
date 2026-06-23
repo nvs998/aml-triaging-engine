@@ -291,7 +291,8 @@
         seedFromDB();
 
         function connectWebSocket() {
-            socket = new WebSocket('ws://localhost:8000/ws/compliance');
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws/compliance`);
 
             socket.onopen = () => {
                 document.getElementById('ws-indicator').className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
