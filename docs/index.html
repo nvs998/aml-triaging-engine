@@ -66,12 +66,15 @@ code{font-family:var(--font-mono);font-size:.88em;background:var(--surface-2);bo
 .pill i{width:8px;height:8px;border-radius:50%;background:var(--low);box-shadow:0 0 8px var(--low)}
 .cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:34px}
 
-/* Tech marquee */
-.strip{padding:26px 0;border-block:1px solid var(--border);overflow:hidden;background:var(--surface)}
-.marquee{display:flex;gap:14px;width:max-content;animation:scroll 42s linear infinite}
+/* Tech marquee (logo-band style) */
+.strip{padding:22px 0 30px;overflow:hidden;background:#161a3b;background-image:radial-gradient(circle at 20% 0%,rgba(14,165,233,.14),transparent 45%),radial-gradient(circle at 85% 100%,rgba(30,58,138,.5),transparent 50%);color:#fff}
+.strip-label{font:500 1.05rem var(--font-body);color:#e6ebf7;margin-bottom:20px}
+.strip-track{-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.marquee{display:flex;gap:64px;width:max-content;animation:scroll 48s linear infinite;padding-right:64px}
+.strip:hover .marquee{animation-play-state:paused}
+.tech{display:inline-flex;align-items:center;gap:14px;white-space:nowrap;font:700 clamp(1.35rem,2.2vw,1.85rem)/1 var(--font-body);letter-spacing:-.01em;color:#fff;opacity:.92}
+.tech .ci{width:clamp(30px,3vw,40px);height:clamp(30px,3vw,40px);color:#7dd3fc;flex:none}
 .chip{font:500 .84rem var(--font-mono);padding:7px 14px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--muted);white-space:nowrap}
-.strip .chip{display:inline-flex;align-items:center;gap:9px;font-size:.88rem;padding:9px 16px;color:var(--text)}
-.ci{width:18px;height:18px;color:var(--accent-2);flex:none}
 @keyframes scroll{to{transform:translateX(-50%)}}
 
 /* Cards */
@@ -158,7 +161,7 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent)}
 .reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
 .reveal.in{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){
-  html{scroll-behavior:auto}.marquee{animation:none;flex-wrap:wrap;width:auto}
+  html{scroll-behavior:auto}.marquee{animation:none;flex-wrap:wrap;width:auto;gap:22px 40px;padding:0 24px}.strip-track{mask-image:none;-webkit-mask-image:none}
   .marquee > [aria-hidden="true"]{display:none}
   .reveal{opacity:1;transform:none;transition:none}.card,.btn{transition:none}
 }
@@ -200,11 +203,12 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent)}
     </div>
   </header>
 
-  <div class="strip" aria-label="Core technologies">
-    <div class="marquee">
-      <span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-code"/></svg>Python 3.13</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-bolt"/></svg>uv</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-server"/></svg>FastAPI</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-check"/></svg>Pydantic v2</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-agents"/></svg>CrewAI</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-cpu"/></svg>Gemini 2.5 Flash</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-cpu"/></svg>Claude (Anthropic SDK)</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-doc"/></svg>ISO 20022 pacs.008</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-building"/></svg>Companies House API</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-signal"/></svg>WebSockets</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-db"/></svg>SQLite · aiosqlite</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-arrows"/></svg>httpx</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-user"/></svg>Faker en_GB</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-box"/></svg>Docker</span><span class="chip"><svg class="ci" aria-hidden="true"><use href="#i-cloud"/></svg>Azure Container Apps</span>
-      <span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-code"/></svg>Python 3.13</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-bolt"/></svg>uv</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-server"/></svg>FastAPI</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-check"/></svg>Pydantic v2</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-agents"/></svg>CrewAI</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-cpu"/></svg>Gemini 2.5 Flash</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-cpu"/></svg>Claude (Anthropic SDK)</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-doc"/></svg>ISO 20022 pacs.008</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-building"/></svg>Companies House API</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-signal"/></svg>WebSockets</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-db"/></svg>SQLite · aiosqlite</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-arrows"/></svg>httpx</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-user"/></svg>Faker en_GB</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-box"/></svg>Docker</span><span class="chip" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-cloud"/></svg>Azure Container Apps</span>
-    </div>
+  <div class="strip" aria-label="Technologies explored in the project">
+    <div class="wrap"><p class="strip-label">Technologies explored in the project:</p></div>
+    <div class="strip-track"><div class="marquee">
+      <span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-code"/></svg>Python</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-bolt"/></svg>uv</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-server"/></svg>FastAPI</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-check"/></svg>Pydantic</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-agents"/></svg>CrewAI</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-cpu"/></svg>Gemini</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-cpu"/></svg>Claude</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-doc"/></svg>ISO 20022</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-building"/></svg>Companies House</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-signal"/></svg>WebSockets</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-db"/></svg>SQLite</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-arrows"/></svg>httpx</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-user"/></svg>Faker</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-box"/></svg>Docker</span><span class="tech"><svg class="ci" aria-hidden="true"><use href="#i-cloud"/></svg>Azure</span>
+      <span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-code"/></svg>Python</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-bolt"/></svg>uv</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-server"/></svg>FastAPI</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-check"/></svg>Pydantic</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-agents"/></svg>CrewAI</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-cpu"/></svg>Gemini</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-cpu"/></svg>Claude</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-doc"/></svg>ISO 20022</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-building"/></svg>Companies House</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-signal"/></svg>WebSockets</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-db"/></svg>SQLite</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-arrows"/></svg>httpx</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-user"/></svg>Faker</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-box"/></svg>Docker</span><span class="tech" aria-hidden="true"><svg class="ci" aria-hidden="true"><use href="#i-cloud"/></svg>Azure</span>
+    </div></div>
   </div>
 
   <!-- OVERVIEW -->
