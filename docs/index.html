@@ -78,7 +78,6 @@ code{font-family:var(--font-mono);font-size:.88em;background:var(--surface-2);bo
 .strip-label{font:500 1.05rem var(--font-body);color:#e6ebf7;margin-bottom:20px}
 .strip-track{-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
 .marquee{display:flex;gap:64px;width:max-content;animation:scroll 48s linear infinite;padding-right:64px}
-.strip:hover .marquee{animation-play-state:paused}
 .tech{display:inline-flex;align-items:center;gap:14px;white-space:nowrap;font:700 clamp(1.35rem,2.2vw,1.85rem)/1 var(--font-body);letter-spacing:-.01em;color:#fff;opacity:.92}
 .tech .ci{width:clamp(30px,3vw,40px);height:clamp(30px,3vw,40px);color:#7dd3fc;flex:none}
 .tech .logo{height:clamp(30px,3vw,42px);width:auto;max-width:220px;object-fit:contain}
@@ -198,27 +197,27 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent-2)}
   <section id="overview">
     <div class="wrap">
       <span class="eyebrow">01 / Overview</span>
-      <h2 class="reveal">Screening payments without slowing them down</h2>
+      <h2 class="reveal">Helping compliance teams find the transactions that matter</h2>
       <div class="ps">
         <div class="box reveal">
           <span class="tag">The problem</span>
-          <p>UK payment firms must check every transfer for money-laundering patterns under the Money Laundering Regulations 2017, and justify any account freeze. Doing that well is slow, and payments can&#x27;t wait.</p>
+          <p>Compliance teams in UK banks must spot the few suspicious payments hidden among thousands of legitimate ones, investigate each one, and prove afterwards why the money was allowed, escalated or frozen.</p>
           <ul>
-            <li>Launderers split sums into payments just under the £10,000 threshold so none of them stands out.</li>
-            <li>Money moves through dormant shell companies whose real owners sit offshore, hidden behind a UK company name.</li>
-            <li>AI investigations take seconds per payment, too slow to run inside the payment request.</li>
-            <li>A freeze has to be explained in plain English, or it won&#x27;t stand up to the Financial Ombudsman.</li>
+            <li>Laundering patterns are easy to miss by hand: payments split just under £10,000, dormant shell companies, owners hidden offshore.</li>
+            <li>Every flagged case means gathering evidence from several places, such as the payer&#x27;s history and the Companies House record, which eats analyst time.</li>
+            <li>Regulators and the Financial Ombudsman expect a clear audit trail of where the money went and why each decision was made.</li>
+            <li>All of this has to happen without holding up legitimate payments.</li>
             
           </ul>
         </div>
         <div class="box solution reveal">
           <span class="tag">How it solves it</span>
-          <p>Accept the payment immediately, investigate it in the background with specialist agents, and record a typed verdict together with its reasoning.</p>
+          <p>AML Sentinel does the first investigation automatically. AI agents flag risky payments with a risk level and an action plan, and every finding is recorded so analysts start from a prepared case and the money trail can be audited later.</p>
           <ol>
-            <li><b>Validate</b>: the pacs.008 message, normalise UK sort codes and account numbers, and return <code>202 Accepted</code> with a tracking ID.</li>
+            <li><b>Validate</b>: the pacs.008 message, normalise UK sort codes and account numbers, and send back an acknowledgement with a tracking ID.</li>
             <li><b>Sift</b>: the payer&#x27;s last 50 payments for structuring, unusual frequency, escalating amounts and first-time payees.</li>
             <li><b>Investigate</b>: the payee on Companies House: status, incorporation date and persons with significant control.</li>
-            <li><b>Score</b>: against MLR 2017 rules into LOW, MEDIUM or HIGH with an action: allow, escalate to the MLRO, or freeze.</li>
+            <li><b>Score</b>: against MLR 2017 rules into LOW, MEDIUM or HIGH with an action plan: allow, escalate to the MLRO, or freeze.</li>
             <li><b>Stream and record</b>: each agent step live over WebSocket, and store the verdict and rationale in the audit ledger.</li>
             
           </ol>
@@ -343,7 +342,7 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent-2)}
         <article class="card reveal">
           <div class="icon" aria-hidden="true"><svg><use href="#i-server"/></svg></div>
           <h3>FastAPI gateway</h3>
-          <p>Accepts ISO 20022 payloads, returns <code>202</code> straight away, and serves the status, ledger and WebSocket endpoints.</p>
+          <p>Accepts ISO 20022 payloads, sends an acknowledgement straight away, and serves the status, ledger and WebSocket endpoints.</p>
         </article>
         
         <article class="card reveal">
