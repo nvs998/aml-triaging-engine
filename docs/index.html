@@ -46,7 +46,7 @@ code{font-family:var(--font-mono);font-size:.88em;background:var(--surface-2);bo
 /* Nav */
 .nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);background:rgba(255,255,255,.86);border-bottom:1px solid var(--border)}
 .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:66px;gap:20px}
-.brand{font:700 1.15rem var(--font-display);text-decoration:none;display:flex;align-items:center;gap:10px}
+.brand{font:700 1.15rem var(--font-display);text-decoration:none;display:flex;align-items:center;gap:10px;white-space:nowrap}
 .brand svg{width:28px;height:28px}
 .nav ul{display:flex;gap:24px;list-style:none;font-size:.93rem}
 .nav ul a{text-decoration:none;color:var(--muted)} .nav ul a:hover{color:var(--accent)}
@@ -54,7 +54,7 @@ code{font-family:var(--font-mono);font-size:.88em;background:var(--surface-2);bo
 .btn:hover{transform:translateY(-1px)}
 .btn-primary{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 8px 28px rgba(30,58,138,.22)}
 .btn-ghost{background:#fff;color:var(--accent)}
-@media (max-width:900px){.nav ul{display:none}}
+@media (max-width:640px){.nav .btn{display:none}.nav ul{gap:18px}}
 
 /* Hero */
 .hero{padding:130px 0 96px;overflow:hidden;position:relative}
@@ -180,10 +180,8 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent)}
       AML Sentinel
     </a>
     <ul>
-      <li><a href="#overview">Overview</a></li>
-      <li><a href="#how">How it works</a></li>
+      <li><a href="#top">Home</a></li>
       <li><a href="#architecture">Architecture</a></li>
-      <li><a href="#agents">Agents</a></li>
       <li><a href="#faq">FAQ</a></li>
     </ul>
     <a class="btn btn-ghost" href="https://github.com/nvs998/aml-triaging-engine" rel="noopener" target="_blank">View on GitHub</a>
@@ -193,7 +191,6 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent)}
 <main id="top">
   <header class="hero">
     <div class="wrap">
-      <span class="pill"><i></i>Working prototype · Live demo on Azure UK South</span>
       <h1>AML <span class="grad">Sentinel</span></h1>
       <p class="sub">Payment screening that never blocks the gateway, run by a three-agent AI compliance crew that explains every verdict.</p>
       <p class="lead">An asynchronous anti-money-laundering triage engine for UK payments. It validates ISO 20022 pacs.008 credit transfers, hands them to Sifter, OSINT and Risk Scorer agents in the background, checks beneficial owners against Companies House, and streams each step and the final verdict to a live dashboard.</p>
