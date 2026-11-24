@@ -7,7 +7,7 @@ Download each logo from the vendor's official brand or press page, preferably th
 "for dark backgrounds" version (the band is dark navy), save it here as SVG with these names,
 and check each vendor's brand guidelines for how the logo may be used:
 
-python.svg · uv.svg · fastapi.svg · pydantic.svg · crewai.svg · gemini.svg · claude.svg ·
+python.svg · uv.svg · fastapi.svg · pydantic.svg · crewai.svg · gemini.svg ·
 iso20022.svg · companies-house.svg · websockets.svg · sqlite.svg · httpx.svg · faker.svg ·
 docker.svg · azure.svg
 
