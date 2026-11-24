@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="project-showcase">
-<title>AML Sentinel — Async AML triage run by a three-agent AI compliance crew</title>
-<meta name="description" content="AML Sentinel screens ISO 20022 payments in the background with a three-agent CrewAI pipeline, Companies House ownership checks and explainable, schema-pinned risk verdicts for UK MLR 2017 compliance.">
-<meta property="og:title" content="AML Sentinel — Async AML triage run by a three-agent AI compliance crew">
-<meta property="og:description" content="AML Sentinel screens ISO 20022 payments in the background with a three-agent CrewAI pipeline, Companies House ownership checks and explainable, schema-pinned risk verdicts for UK MLR 2017 compliance.">
+<title>AML Sentinel — Async AML triage run by an AI compliance crew</title>
+<meta name="description" content="AML Sentinel screens ISO 20022 payments in the background with a CrewAI agent pipeline, Companies House ownership checks and explainable, schema-pinned risk verdicts for UK MLR 2017 compliance.">
+<meta property="og:title" content="AML Sentinel — Async AML triage run by an AI compliance crew">
+<meta property="og:description" content="AML Sentinel screens ISO 20022 payments in the background with a CrewAI agent pipeline, Companies House ownership checks and explainable, schema-pinned risk verdicts for UK MLR 2017 compliance.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2064%2064%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231e3a8a%22/%3E%3Cpath%20d%3D%22M32%2012%20L48%2018%20V31%20C48%2041%2041%2049%2032%2052%20C23%2049%2016%2041%2016%2031%20V18%20Z%22%20fill%3D%22none%22%20stroke%3D%22%237dd3fc%22%20stroke-width%3D%224%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M25%2032%20L30%2037%20L40%2027%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
@@ -174,8 +174,8 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent-2)}
   <header class="hero">
     <div class="wrap">
       <h1>AML <span class="grad">Sentinel</span></h1>
-      <p class="sub">Async AML triage run by a three-agent AI compliance crew</p>
-      <p class="lead">An anti-money-laundering triage engine for UK payments. It validates ISO 20022 pacs.008 credit transfers and accepts them instantly, then hands each one to three AI agents working in the background. A Sifter studies the payer&#x27;s history, an OSINT investigator traces the payee&#x27;s real owners on Companies House, and a Risk Scorer applies MLR 2017 rules. Every verdict is streamed live and stored with a plain-English explanation.</p>
+      <p class="sub">Async AML triage run by an AI compliance crew</p>
+      <p class="lead">An anti-money-laundering triage engine for UK payments. It validates ISO 20022 pacs.008 credit transfers and accepts them instantly, then hands each one to AI agents working in the background. A Sifter studies the payer&#x27;s history, an OSINT investigator traces the payee&#x27;s real owners on Companies House, and a Risk Scorer applies MLR 2017 rules. Every verdict is streamed live and stored with a plain-English explanation.</p>
       <div class="cta">
         <a class="btn btn-primary" href="#architecture">Explore the architecture →</a>
         
@@ -231,109 +231,73 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent-2)}
     <div class="wrap">
       <span class="eyebrow">02 / Architecture</span>
       <h2 class="reveal">A thin gateway, a background crew, one audit ledger</h2>
-      <p class="lead reveal">FastAPI handles validation and I/O. The reasoning happens in a background triage loop that picks a pipeline based on the configured API keys, and both agent tools read from systems of record.</p>
+      <p class="lead reveal">Payments are validated and acknowledged straight away. AI agents then investigate each one in the background, drawing on payment history, company records and an LLM, and every verdict is saved with its reasoning.</p>
       <figure class="diagram reveal">
-<svg viewBox="0 0 1000 560" role="img" aria-labelledby="archTitle archDesc">
-          <title id="archTitle">AML Sentinel architecture</title>
-          <desc id="archDesc">Clients post ISO 20022 payloads to the FastAPI gateway, which writes a PROCESSING row to the SQLite ledger, returns 202, and starts run_agentic_triage_loop as a background task. The loop runs Sifter, OSINT Investigator and Risk Scorer agents in sequence. The Sifter uses LedgerQueryTool against SQLite, the OSINT agent uses CompaniesHouseTool against the Companies House API or a mock registry, and the agents reason with Gemini 2.5 Flash or Claude. Verdicts are written to the ledger and agent steps are broadcast through the WebSocket manager to the live dashboard.</desc>
-          <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path class="ah" d="M0 0L10 5L0 10z"/>
-            </marker>
-          </defs>
+<svg viewBox="0 0 1000 480" role="img" aria-labelledby="archTitle archDesc">
+          <title id="archTitle">How AML Sentinel works</title>
+          <desc id="archDesc">A bank or client sends a payment to the API gateway, which validates it, acknowledges it and opens a case in the audit ledger. An AI triage pipeline then runs in the background: the Sifter checks payment history, the OSINT investigator looks up company owners on Companies House, and the Risk Scorer uses an LLM to decide the risk and action plan. The verdict and reasoning are saved to the audit ledger and each step is shown live on the dashboard.</desc>
+          <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
 
-          <!-- Clients -->
-          <rect class="n" x="20" y="40" width="190" height="84" rx="12"/>
-          <text class="t" x="115" y="72" text-anchor="middle">Clients</text>
-          <text class="s" x="115" y="92" text-anchor="middle">dashboard · cURL</text>
-          <text class="s" x="115" y="108" text-anchor="middle">submit_transactions.py</text>
+          <rect class="n" x="20" y="40" width="190" height="70" rx="12"/>
+          <text class="t" x="115" y="70" text-anchor="middle">Bank / client</text>
+          <text class="s" x="115" y="92" text-anchor="middle">sends a payment</text>
 
-          <!-- Gateway -->
-          <rect class="n-hl" x="300" y="40" width="250" height="84" rx="12"/>
-          <text class="t" x="425" y="72" text-anchor="middle">FastAPI gateway</text>
-          <text class="s" x="425" y="92" text-anchor="middle">ISO20022Payload · Pydantic v2</text>
-          <text class="s" x="425" y="108" text-anchor="middle">REST + /ws/compliance</text>
+          <rect class="n-hl" x="300" y="40" width="250" height="70" rx="12"/>
+          <text class="t" x="425" y="70" text-anchor="middle">API gateway</text>
+          <text class="s" x="425" y="92" text-anchor="middle">validates and acknowledges</text>
 
-          <!-- Ledger -->
-          <rect class="n" x="760" y="40" width="220" height="84" rx="12"/>
-          <text class="t" x="870" y="72" text-anchor="middle">SQLite audit ledger</text>
-          <text class="s" x="870" y="92" text-anchor="middle">aml_ledger.db · aiosqlite</text>
-          <text class="s" x="870" y="108" text-anchor="middle">risk · reasoning · action</text>
+          <rect class="n" x="760" y="40" width="220" height="70" rx="12"/>
+          <text class="t" x="870" y="70" text-anchor="middle">Audit ledger</text>
+          <text class="s" x="870" y="92" text-anchor="middle">every case and verdict</text>
 
-          <!-- client <-> gateway -->
-          <path class="e" d="M210 70 H298" marker-end="url(#arrow)"/>
-          <text class="l" x="254" y="62" text-anchor="middle">pacs.008</text>
-          <path class="e" d="M300 100 H212" marker-end="url(#arrow)"/>
-          <text class="l" x="254" y="118" text-anchor="middle">202 + tx_id</text>
-          <!-- gateway -> ledger -->
-          <path class="e" d="M550 70 H758" marker-end="url(#arrow)"/>
-          <text class="l" x="654" y="62" text-anchor="middle">insert PROCESSING</text>
-          <path class="e-d" d="M758 100 H552" marker-end="url(#arrow)"/>
-          <text class="l" x="654" y="118" text-anchor="middle">GET /ledger · /transaction/{id}</text>
+          <path class="e" d="M210 62 H298" marker-end="url(#arrow)"/>
+          <text class="l" x="254" y="54" text-anchor="middle">payment</text>
+          <path class="e" d="M300 92 H212" marker-end="url(#arrow)"/>
+          <text class="l" x="254" y="108" text-anchor="middle">acknowledged</text>
+          <path class="e" d="M550 62 H758" marker-end="url(#arrow)"/>
+          <text class="l" x="654" y="54" text-anchor="middle">new case</text>
+          <path class="e-d" d="M758 92 H552" marker-end="url(#arrow)"/>
+          <text class="l" x="654" y="108" text-anchor="middle">status and history</text>
 
-          <!-- Orchestrator panel -->
-          <rect class="panel" x="240" y="180" width="520" height="210" rx="16"/>
-          <text class="t" x="260" y="206">run_agentic_triage_loop()</text>
-          <text class="s" x="260" y="224">BackgroundTask · CrewAI Process.sequential</text>
-          <path class="e" d="M425 124 V178" marker-end="url(#arrow)"/>
-          <text class="l" x="434" y="172">BackgroundTask</text>
+          <rect class="panel" x="240" y="160" width="520" height="170" rx="16"/>
+          <text class="t" x="260" y="188">AI triage pipeline</text>
+          <text class="s" x="260" y="206">runs in the background</text>
+          <path class="e" d="M425 110 V158" marker-end="url(#arrow)"/>
 
-          <rect class="n-hl" x="262" y="242" width="146" height="64" rx="10"/>
-          <text class="t" x="335" y="270" text-anchor="middle">Sifter</text>
-          <text class="s" x="335" y="290" text-anchor="middle">behaviour</text>
-          <rect class="n-hl" x="428" y="242" width="146" height="64" rx="10"/>
-          <text class="t" x="501" y="270" text-anchor="middle">OSINT</text>
-          <text class="s" x="501" y="290" text-anchor="middle">UBO / PSC</text>
-          <rect class="n-hl" x="594" y="242" width="146" height="64" rx="10"/>
-          <text class="t" x="667" y="270" text-anchor="middle">Risk Scorer</text>
-          <text class="s" x="667" y="290" text-anchor="middle">RiskAssessment</text>
-          <path class="e" d="M408 274 H426" marker-end="url(#arrow)"/>
-          <path class="e" d="M574 274 H592" marker-end="url(#arrow)"/>
+          <rect class="n-hl" x="262" y="226" width="146" height="64" rx="10"/>
+          <text class="t" x="335" y="253" text-anchor="middle">Sifter</text>
+          <text class="s" x="335" y="273" text-anchor="middle">payment patterns</text>
+          <rect class="n-hl" x="428" y="226" width="146" height="64" rx="10"/>
+          <text class="t" x="501" y="253" text-anchor="middle">OSINT</text>
+          <text class="s" x="501" y="273" text-anchor="middle">company owners</text>
+          <rect class="n-hl" x="594" y="226" width="146" height="64" rx="10"/>
+          <text class="t" x="667" y="253" text-anchor="middle">Risk Scorer</text>
+          <text class="s" x="667" y="273" text-anchor="middle">risk + action plan</text>
+          <path class="e" d="M408 258 H426" marker-end="url(#arrow)"/>
+          <path class="e" d="M574 258 H592" marker-end="url(#arrow)"/>
 
-          <text class="s" x="262" y="334">Gemini key → CrewAI crew · Anthropic key → rules + Claude</text>
-          <text class="s" x="262" y="352">no key → rules engine · on error → rules → ERROR (manual review)</text>
-          <text class="s" x="262" y="372">sync callbacks → asyncio.run_coroutine_threadsafe</text>
+          <path class="e" d="M760 258 H870 V112" marker-end="url(#arrow)"/>
+          <text class="l" x="880" y="190">verdict +</text>
+          <text class="l" x="880" y="206">reasoning</text>
 
-          <!-- verdict -> ledger -->
-          <path class="e" d="M760 274 H870 V126" marker-end="url(#arrow)"/>
-          <text class="l" x="780" y="266">verdict + reasoning</text>
+          <rect class="n" x="20" y="224" width="190" height="68" rx="12"/>
+          <text class="t" x="115" y="253" text-anchor="middle">Live dashboard</text>
+          <text class="s" x="115" y="274" text-anchor="middle">each step as it happens</text>
+          <path class="e" d="M240 258 H212" marker-end="url(#arrow)"/>
+          <text class="l" x="115" y="312" text-anchor="middle">live updates</text>
 
-          <!-- WebSocket manager -->
-          <rect class="n" x="20" y="240" width="190" height="72" rx="12"/>
-          <text class="t" x="115" y="270" text-anchor="middle">WebSocket manager</text>
-          <text class="s" x="115" y="290" text-anchor="middle">ConnectionManager</text>
-          <path class="e" d="M240 290 H212" marker-end="url(#arrow)"/>
-          <text class="l" x="115" y="334" text-anchor="middle">AGENT_STEP ·</text>
-          <text class="l" x="115" y="350" text-anchor="middle">TRIAGE_COMPLETE</text>
-          <path class="e" d="M115 240 V126" marker-end="url(#arrow)"/>
-          <text class="l" x="124" y="190">live events</text>
-
-          <!-- Tools + models row -->
-          <rect class="n" x="240" y="440" width="160" height="72" rx="12"/>
-          <text class="t" x="320" y="470" text-anchor="middle">LedgerQueryTool</text>
-          <text class="s" x="320" y="490" text-anchor="middle">last 50 payments</text>
-          <rect class="n" x="420" y="440" width="170" height="72" rx="12"/>
-          <text class="t" x="505" y="470" text-anchor="middle">CompaniesHouseTool</text>
-          <text class="s" x="505" y="490" text-anchor="middle">profile + PSCs</text>
-          <rect class="n" x="610" y="440" width="150" height="72" rx="12"/>
-          <text class="t" x="685" y="470" text-anchor="middle">LLMs</text>
-          <text class="s" x="685" y="490" text-anchor="middle">Gemini 2.5 Flash</text>
-          <text class="s" x="685" y="505" text-anchor="middle">Claude (parse)</text>
-          <path class="e" d="M335 392 V438" marker-end="url(#arrow)"/>
-          <path class="e" d="M501 392 V438" marker-end="url(#arrow)"/>
-          <path class="e" d="M667 392 V438" marker-end="url(#arrow)"/>
-          <text class="l" x="342" y="420">history</text>
-          <text class="l" x="508" y="420">lookup</text>
-          <text class="l" x="674" y="420">reasoning</text>
-
-          <!-- Companies House external -->
-          <rect class="n" x="800" y="440" width="180" height="72" rx="12"/>
-          <text class="t" x="890" y="470" text-anchor="middle">Companies House</text>
-          <text class="s" x="890" y="490" text-anchor="middle">live API · mock registry</text>
-          <path class="e" d="M505 512 V540 H890 V514" marker-end="url(#arrow)"/>
-          <!-- Ledger tool reads SQLite -->
-          <path class="e-d" d="M240 476 H222 V150 H930 V126" marker-end="url(#arrow)"/>
-          <text class="l" x="640" y="144">LedgerQueryTool reads history</text>
+          <rect class="n" x="240" y="390" width="160" height="66" rx="12"/>
+          <text class="t" x="320" y="418" text-anchor="middle">Payment history</text>
+          <text class="s" x="320" y="438" text-anchor="middle">past transfers</text>
+          <rect class="n" x="420" y="390" width="170" height="66" rx="12"/>
+          <text class="t" x="505" y="418" text-anchor="middle">Companies House</text>
+          <text class="s" x="505" y="438" text-anchor="middle">company records</text>
+          <rect class="n" x="610" y="390" width="150" height="66" rx="12"/>
+          <text class="t" x="685" y="418" text-anchor="middle">LLM</text>
+          <text class="s" x="685" y="438" text-anchor="middle">Gemini 2.5 Flash</text>
+          <path class="e" d="M335 290 V388" marker-end="url(#arrow)"/>
+          <path class="e" d="M501 290 V388" marker-end="url(#arrow)"/>
+          <path class="e" d="M667 290 V388" marker-end="url(#arrow)"/>
         </svg>
       </figure>
       <h3 class="sub-h reveal">Core components</h3>
@@ -359,7 +323,7 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent-2)}
         
         <article class="card reveal">
           <div class="icon" aria-hidden="true"><svg><use href="#i-agents"/></svg></div>
-          <h3>Three-agent crew</h3>
+          <h3>Agent crew</h3>
           <p>Sifter, OSINT Investigator and Risk Scorer run in sequence on CrewAI, ending in a schema-pinned <code>RiskAssessment</code>.</p>
         </article>
         
