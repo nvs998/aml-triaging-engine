@@ -185,7 +185,6 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent)}
       <li><a href="#architecture">Architecture</a></li>
       <li><a href="#agents">Agents</a></li>
       <li><a href="#faq">FAQ</a></li>
-      <li><a href="#about">About</a></li>
     </ul>
     <a class="btn btn-ghost" href="https://github.com/nvs998/aml-triaging-engine" rel="noopener" target="_blank">View on GitHub</a>
   </div>
@@ -380,23 +379,8 @@ footer a{text-decoration:none} footer a:hover{color:var(--accent)}
           <path class="e-d" d="M240 476 H222 V150 H930 V126" marker-end="url(#arrow)"/>
           <text class="l" x="640" y="144">LedgerQueryTool reads history</text>
         </svg>
-        <figcaption>Drawn from app/main.py, app/agents/crew.py, app/agents/tools.py and app/ledger.py.</figcaption>
+        
       </figure>
-      <div class="table-wrap reveal">
-        <table class="components">
-          <thead><tr><th>Component</th><th>Responsibility</th><th>Key files</th></tr></thead>
-          <tbody>
-            <tr><td><b>FastAPI gateway</b></td><td class="muted">REST ingestion and polling, WebSocket endpoint, dashboard and demo routes, initialises the database at startup</td><td class="muted"><code>app/main.py</code></td></tr>
-            <tr><td><b>ISO 20022 parser</b></td><td class="muted"><code>Debtor</code>, <code>Creditor</code>, <code>TransactionDetails</code> and <code>ISO20022Payload</code>, with field validators for UK sort codes and account numbers</td><td class="muted"><code>app/parser/models.py</code></td></tr>
-            <tr><td><b>Triage orchestrator</b></td><td class="muted">Picks the CrewAI, Claude or rules pipeline, falls back on errors, updates the ledger and broadcasts the result</td><td class="muted"><code>app/agents/crew.py</code></td></tr>
-            <tr><td><b>Agent tools</b></td><td class="muted"><code>ledger_query</code> (debtor history plus a near-threshold count) and <code>companies_house_lookup</code> (live API or mock)</td><td class="muted"><code>app/agents/tools.py</code></td></tr>
-            <tr><td><b>Claude client</b></td><td class="muted"><code>RiskAssessment</code> schema, compliance-officer system prompt, structured parse with a local rules fallback</td><td class="muted"><code>app/services/claude_client.py</code></td></tr>
-            <tr><td><b>WebSocket manager</b></td><td class="muted">Tracks open connections and broadcasts JSON events</td><td class="muted"><code>app/services/websocket_manager.py</code></td></tr>
-            <tr><td><b>Audit ledger</b></td><td class="muted">Async SQLite create, update and read for every transaction and verdict</td><td class="muted"><code>app/ledger.py</code></td></tr>
-            <tr><td><b>Dashboard &amp; load tools</b></td><td class="muted">Live Tailwind dashboard, a static demo, a Faker <code>en_GB</code> payload generator and a submit/poll CLI</td><td class="muted"><code>index.html</code>, <code>scripts/</code></td></tr>
-          </tbody>
-        </table>
-      </div>
     </div>
   </section>
 
@@ -436,47 +420,10 @@ task3 = Task(
     </div>
   </section>
 
-  <!-- DEEP DIVE 2: resilience -->
-  <section id="resilience">
-    <div class="wrap">
-      <span class="eyebrow">05 / Resilience</span>
-      <h2 class="reveal">Always produces a verdict, and fails safe when it can't</h2>
-      <div class="split rev">
-        <div class="reveal">
-          <p class="lead" style="margin-bottom:22px">A compliance engine that silently drops a payment is worse than a slow one. The orchestrator steps down through simpler pipelines, and if everything fails it sends the case to manual review rather than approving it.</p>
-          <ul>
-            <li><b>Pipeline chosen by configured keys</b>: with a Gemini key the full CrewAI crew runs. With only an Anthropic key, deterministic sifting and a Companies House lookup are followed by Claude scoring. With no keys, a pure rules engine runs, so the demo works without credentials.</li>
-            <li><b>Fallback on exceptions</b>: any error in the main pipeline reruns the case through the rules engine.</li>
-            <li><b>Fails closed</b>: if the rules engine also fails, the row is marked <code>ERROR</code> with HIGH risk and <code>ESCALATE_TO_MLRO</code>, and the reasoning says manual review is required.</li>
-            <li><b>Sync-to-async bridge</b>: CrewAI task callbacks run in a worker thread, so each broadcast is scheduled back onto FastAPI's event loop with <code>asyncio.run_coroutine_threadsafe</code>.</li>
-            <li><b>Repeatable demos</b>: test company numbers come from a mock registry first, and the live API is only called for other numbers (with the <code>UK</code> prefix removed).</li>
-          </ul>
-        </div>
-        <figure class="reveal">
-<pre><code><span class="k">try</span>:
-    <span class="k">if</span> GEMINI_API_KEY:
-        <span class="k">await</span> _run_crew_pipeline(tx_id, payload)
-    <span class="k">elif</span> ANTHROPIC_API_KEY:
-        <span class="k">await</span> _run_deterministic_pipeline(tx_id, payload)
-    <span class="k">else</span>:
-        <span class="k">await</span> _run_rules_pipeline(tx_id, payload)
-<span class="k">except</span> Exception <span class="k">as</span> e:
-    <span class="k">try</span>:
-        <span class="k">await</span> _run_rules_pipeline(tx_id, payload)
-    <span class="k">except</span> Exception <span class="k">as</span> e2:
-        <span class="k">await</span> update_transaction(tx_id, {<span class="str">"status"</span>: <span class="str">"ERROR"</span>,
-            <span class="str">"risk_score"</span>: <span class="str">"HIGH"</span>,
-            <span class="str">"recommended_action"</span>: <span class="str">"ESCALATE_TO_MLRO"</span>, ...})</code></pre>
-          <figcaption>app/agents/crew.py · run_agentic_triage_loop (excerpt, logging omitted)</figcaption>
-        </figure>
-      </div>
-    </div>
-  </section>
-
   <!-- DEEP DIVE 3: typologies -->
-  <section id="typologies" class="alt">
+  <section id="typologies">
     <div class="wrap">
-      <span class="eyebrow">06 / Detection rules</span>
+      <span class="eyebrow">05 / Detection rules</span>
       <h2 class="reveal">Four typologies, higher severity wins</h2>
       <p class="lead reveal">The rules engine and the Risk Scorer's instructions use the same rules, drawn from the UK Money Laundering Regulations 2017. The checks run in order and later matches override earlier ones, so a dormant company receiving £9,500 is scored HIGH, not MEDIUM.</p>
       <div class="table-wrap reveal">
@@ -498,7 +445,7 @@ task3 = Task(
   <!-- DECISIONS -->
   <section id="decisions" class="alt">
     <div class="wrap">
-      <span class="eyebrow">07 / Engineering decisions</span>
+      <span class="eyebrow">06 / Engineering decisions</span>
       <h2 class="reveal">Choices that shape the system</h2>
       <div class="decisions">
         <div class="decision reveal"><h3>Return 202 before any reasoning</h3><p>Multi-agent loops take seconds. Separating acknowledgement from investigation keeps the payment API fast and puts the slow work where it can be retried.</p></div>
@@ -513,7 +460,7 @@ task3 = Task(
   <!-- ROADMAP -->
   <section id="roadmap" class="roadmap">
     <div class="wrap">
-      <span class="eyebrow">08 / Roadmap</span>
+      <span class="eyebrow">07 / Roadmap</span>
       <h2 class="reveal">Planned next, not built yet</h2>
       <p class="lead reveal">These come from the project's blueprint and README. None of them is in the code yet.</p>
       <div class="grid">
@@ -528,7 +475,7 @@ task3 = Task(
   <!-- FAQ -->
   <section id="faq" class="alt">
     <div class="wrap">
-      <span class="eyebrow">09 / FAQ</span>
+      <span class="eyebrow">08 / FAQ</span>
       <h2 class="reveal">Questions, answered</h2>
       <div class="faq">
         <details class="reveal"><summary>What does AML Sentinel do?</summary><p>It screens UK credit transfers (ISO 20022 pacs.008) for money-laundering red flags: structuring just below £10,000, dormant shell companies, offshore beneficial owners and high-value transfers. Each payment gets a risk score, a recommended action and a written rationale.</p></details>
@@ -538,22 +485,6 @@ task3 = Task(
         <details class="reveal"><summary>Where does the company data come from?</summary><p>From the official Companies House public API (company profile and persons with significant control) when an API key is set. Three test company numbers are served from a built-in mock registry, so every risk path can be demonstrated without a key.</p></details>
         <details class="reveal"><summary>Can I run it myself?</summary><p>Yes. Clone the repo, install <code>requirements.txt</code> with uv and start <code>uvicorn app.main:app</code>. The dashboard is at <code>/</code> and the API docs at <code>/docs</code>. <code>scripts/submit_transactions.py</code> can generate and post realistic test payments. A multi-stage Dockerfile is included.</p></details>
       </div>
-    </div>
-  </section>
-
-  <!-- ABOUT -->
-  <section id="about">
-    <div class="wrap about">
-      <div class="reveal">
-        <span class="eyebrow">10 / About</span>
-        <h2>Built by Naveen Soni</h2>
-        <p class="lead">AI Engineer. AML Sentinel shows multi-agent orchestration grounded in real data tools, structured LLM output with a typed contract, and the async plumbing needed to stream agent reasoning live. All of it is shaped around a real regulatory domain and built to keep working when a model or API doesn't.</p>
-        <div class="cta">
-          <a class="btn btn-primary" href="https://github.com/nvs998" rel="noopener" target="_blank">GitHub</a>
-          <a class="btn btn-ghost" href="https://aml-triaging-engine.bravegrass-ea4501f1.uksouth.azurecontainerapps.io/" rel="noopener" target="_blank">Live engine</a>
-        </div>
-      </div>
-      <blockquote class="quote reveal">In compliance, a model's answer only counts if it arrives <span>typed, explained and on the record.</span></blockquote>
     </div>
   </section>
 </main>
